@@ -1,6 +1,7 @@
 package opening
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -30,20 +31,27 @@ func Cached(dir string) (cached bool) {
 	return true
 }
 
-func DownloadDatabase(dir string) ([]string, error) {
+func DownloadDatabase(ctx context.Context, dir string) ([]string, error) {
 	var wg sync.WaitGroup
 	files := make([]string, len(filenames))
 	errsCh := make(chan error, len(filenames))
 	defer close(errsCh)
 
 	for i, filename := range filenames {
+		select {
+		case <-ctx.Done():
+			wg.Wait()
+			return nil, ctx.Err()
+		default:
+		}
+
 		files[i] = filepath.Join(dir, filename)
 		url := DatabaseURL + filename
 
 		wg.Add(1)
 		go func(from, to string) {
 			defer wg.Done()
-			if err := util.Download(url, files[i]); err != nil {
+			if err := util.Download(ctx, url, files[i]); err != nil {
 				errsCh <- fmt.Errorf("failed to download openings db: %w", err)
 			}
 		}(files[i], url)

@@ -16,15 +16,18 @@ func EnsureExists() error {
 
 	appDir := filepath.Join(userDir, "failosof", "cops")
 	if err := os.MkdirAll(appDir, os.ModePerm); err != nil {
-		return fmt.Errorf("failed to create app cache: %w", err)
+		return fmt.Errorf("failed to create core cache: %w", err)
 	}
 
 	dir = appDir
 	return nil
 }
 
-func PathTo(name string) string {
-	return filepath.Join(dir, name)
+func PathTo(names ...string) string {
+	parts := make([]string, 0, len(names)+1)
+	parts = append(parts, dir)
+	parts = append(parts, names...)
+	return filepath.Join(parts...)
 }
 
 func Clear() error {

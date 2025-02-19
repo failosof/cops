@@ -3,9 +3,10 @@ package lichess
 import "regexp"
 
 const (
-	SiteURL        = "https://lichess.org/"
-	PuzzleURL      = SiteURL + "training/"
-	ExportGamesURL = SiteURL + "games/export/_ids"
+	SiteURL           = "https://lichess.org/"
+	PuzzleURL         = SiteURL + "training/"
+	ExportGamesURL    = SiteURL + "games/export/_ids"
+	PuzzleDatabaseURL = "https://database.lichess.org/lichess_db_puzzle.csv.zst"
 )
 
 var gameRe = regexp.MustCompile(`lichess\.org/([a-zA-Z0-9]+)`)
