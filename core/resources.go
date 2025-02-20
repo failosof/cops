@@ -15,9 +15,9 @@ import (
 )
 
 type Resources struct {
-	Opening    OpeningResources
-	Puzzle     PuzzleResources
-	ChessBoard ChessBoardResources
+	Opening OpeningResources
+	Puzzle  PuzzleResources
+	Chess   ChessResources
 }
 
 type OpeningResources struct {
@@ -30,7 +30,7 @@ type PuzzleResources struct {
 	IndexFile    string
 }
 
-type ChessBoardResources struct {
+type ChessResources struct {
 	BackgroundFile string
 	PiecesDir      string
 }

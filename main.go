@@ -14,15 +14,8 @@ import (
 )
 
 func main() {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-
-	c := make(chan os.Signal)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-c
-		cancel()
-	}()
 
 	if err := cache.EnsureExists(); err != nil {
 		fmt.Printf("Failed to ensure core cache dir exists: %v\n", err)
@@ -49,7 +42,7 @@ func main() {
 			DatabaseFile: cache.PathTo("puzzles.csv.zst"),
 			IndexFile:    cache.PathTo("puzzles.index"),
 		},
-		ChessBoard: core.ChessBoardResources{
+		Chess: core.ChessResources{
 			BackgroundFile: cache.PathTo("assets", "board", "brown.png"),
 			PiecesDir:      cache.PathTo("assets", "pieces", "aquarium"),
 		},
@@ -63,12 +56,17 @@ func main() {
 
 	if err := core.LoadChessBoardResources(
 		ctx,
-		resources.ChessBoard.BackgroundFile,
-		resources.ChessBoard.PiecesDir,
+		resources.Chess.BackgroundFile,
+		resources.Chess.PiecesDir,
 	); err != nil {
 		slog.Error("failed to load chess board resources", "err", err)
 		os.Exit(1)
 	}
 
-	ui.DrawMainWindow(ctx, state, resources.ChessBoard)
+	window, err := ui.NewWindow(state, resources.Chess)
+	if err != nil {
+		slog.Error("failed to create main window", "err", err)
+		os.Exit(1)
+	}
+	window.Show(ctx)
 }

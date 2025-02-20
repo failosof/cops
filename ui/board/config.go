@@ -9,6 +9,7 @@ import (
 
 	"github.com/failosof/cops/ui/board/union"
 	"github.com/failosof/cops/ui/board/util"
+	util2 "github.com/failosof/cops/util"
 	"github.com/notnil/chess"
 )
 
@@ -32,12 +33,12 @@ type Color struct {
 
 var (
 	defaultColors = Color{
-		Hint:     util.Transparentize(util.GrayColor, 0.7),
-		LastMove: util.Transparentize(util.YellowColor, 0.5),
-		Primary:  util.Transparentize(util.GreenColor, 0.7),
-		Info:     util.Transparentize(util.BlueColor, 0.7),
-		Warning:  util.Transparentize(util.YellowColor, 0.7),
-		Danger:   util.Transparentize(util.RedColor, 0.7),
+		Hint:     util2.Transparentize(util2.GrayColor, 0.7),
+		LastMove: util2.Transparentize(util2.YellowColor, 0.5),
+		Primary:  util2.Transparentize(util2.GreenColor, 0.7),
+		Info:     util2.Transparentize(util2.BlueColor, 0.7),
+		Warning:  util2.Transparentize(util2.YellowColor, 0.7),
+		Danger:   util2.Transparentize(util2.RedColor, 0.7),
 	}
 )
 

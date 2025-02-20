@@ -15,7 +15,7 @@ require (
 require (
 	gioui.org/shader v1.0.8 // indirect
 	github.com/go-text/typesetting v0.2.1 // indirect
-	golang.org/x/exp/shiny v0.0.0-20250215185904-eff6e970281f // indirect
+	golang.org/x/exp/shiny v0.0.0-20250218142911-aa4b98e5adaa // indirect
 	golang.org/x/image v0.24.0 // indirect
 	golang.org/x/sys v0.22.0 // indirect
 )

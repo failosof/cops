@@ -19,6 +19,7 @@ import (
 	"gioui.org/widget/material"
 	"github.com/failosof/cops/ui/board/union"
 	"github.com/failosof/cops/ui/board/util"
+	util2 "github.com/failosof/cops/util"
 	"github.com/notnil/chess"
 )
 
@@ -141,7 +142,7 @@ func (w *Widget) layout(gtx layout.Context) layout.Dimensions {
 	}
 
 	if w.selectedSquare != chess.NoSquare && w.selectedPiece.Color() == w.curPosition.Turn() {
-		w.markSquare(gtx, w.selectedSquare, util.GrayColor)
+		w.markSquare(gtx, w.selectedSquare, util2.GrayColor)
 		if w.config.ShowHints {
 			for _, move := range w.curPosition.ValidMoves() {
 				if move.S1() == w.selectedSquare {
@@ -219,13 +220,13 @@ func (w *Widget) layout(gtx layout.Context) layout.Dimensions {
 		}
 	}
 
-	w.markSquare(gtx, w.promoteOn, util.GrayColor)
+	w.markSquare(gtx, w.promoteOn, util2.GrayColor)
 	if w.promoteOn != chess.NoSquare {
 		Promotion{
 			Position:   w.squareOrigins[w.promoteOn],
 			SquareSize: w.squareSize,
 			Color:      w.selectedPiece.Color(),
-			Background: util.WhiteColor,
+			Background: util2.WhiteColor,
 			Piece:      w.config.Piece,
 			Flipped:    w.flipped,
 		}.Layout(gtx)
@@ -377,7 +378,7 @@ func (w *Widget) processSecondaryButtonClick(gtx layout.Context, e pointer.Event
 			w.drawingAnno = Annotation{
 				Type:  w.annoType,
 				Start: hoveredSquare,
-				Color: util.Transparentize(w.selectAnnotationColor(), 0.5),
+				Color: util2.Transparentize(w.selectAnnotationColor(), 0.5),
 				Width: union.SizeFromFloat(w.squareSize.Float / 9),
 			}
 			w.dragID = e.PointerID
