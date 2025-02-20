@@ -27,9 +27,28 @@ func NewBoardControls(th *material.Theme) *BoardControls {
 
 func (c *BoardControls) Layout(gtx layout.Context) layout.Dimensions {
 	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-		layout.Flexed(1, PadRight(c.padding, c.reset.Layout)),
-		layout.Flexed(1, PadRight(c.padding, c.backward.Layout)),
-		layout.Flexed(1, PadRight(c.padding, c.forward.Layout)),
+		layout.Flexed(1, c.reset.Layout),
+		layout.Rigid(layout.Spacer{Width: c.padding}.Layout),
+		layout.Flexed(1, c.backward.Layout),
+		layout.Rigid(layout.Spacer{Width: c.padding}.Layout),
+		layout.Flexed(1, c.forward.Layout),
+		layout.Rigid(layout.Spacer{Width: c.padding}.Layout),
 		layout.Flexed(1, c.flip.Layout),
 	)
+}
+
+func (c *BoardControls) ShouldReset(gtx layout.Context) bool {
+	return c.reset.button.Clicked(gtx)
+}
+
+func (c *BoardControls) ShouldMoveBackward(gtx layout.Context) bool {
+	return c.backward.button.Clicked(gtx)
+}
+
+func (c *BoardControls) ShouldMoveForward(gtx layout.Context) bool {
+	return c.forward.button.Clicked(gtx)
+}
+
+func (c *BoardControls) ShouldFlip(gtx layout.Context) bool {
+	return c.flip.button.Clicked(gtx)
 }

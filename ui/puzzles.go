@@ -12,6 +12,7 @@ import (
 )
 
 type PuzzleList struct {
+	editor *widget.Editor
 	style  material.EditorStyle
 	border widget.Border
 }
@@ -21,7 +22,8 @@ func NewPuzzleList(th *material.Theme) *PuzzleList {
 		ReadOnly: true,
 	}
 	return &PuzzleList{
-		style: material.Editor(th, editor, "Lichess Puzzle URLs"),
+		editor: editor,
+		style:  material.Editor(th, editor, "Lichess Puzzle URLs"),
 		border: widget.Border{
 			Color:        util.BlackColor,
 			CornerRadius: unit.Dp(1),
@@ -34,11 +36,15 @@ func (l *PuzzleList) Layout(gtx layout.Context) layout.Dimensions {
 	return l.border.Layout(gtx, Pad(unit.Dp(7), l.style.Layout))
 }
 
+func (l *PuzzleList) Clear() {
+	l.editor.SetText("")
+}
+
 func (l *PuzzleList) Set(puzzles []puzzle.Data) {
 	var list strings.Builder
 	for _, puzzleData := range puzzles {
 		list.WriteString(puzzleData.URL())
 		list.WriteRune('\n')
 	}
-	l.style.Editor.SetText(list.String())
+	l.editor.SetText(list.String())
 }

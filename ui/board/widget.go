@@ -19,7 +19,7 @@ import (
 	"gioui.org/widget/material"
 	"github.com/failosof/cops/ui/board/union"
 	"github.com/failosof/cops/ui/board/util"
-	util2 "github.com/failosof/cops/util"
+	coreutil "github.com/failosof/cops/util"
 	"github.com/notnil/chess"
 )
 
@@ -27,6 +27,7 @@ import (
 // todo: add each square coordinates
 // todo: add pawn promotion
 // todo: animations
+// todo: remove core deps
 
 type Widget struct {
 	th *material.Theme
@@ -105,7 +106,7 @@ func (w *Widget) layout(gtx layout.Context) layout.Dimensions {
 
 	w.curBoardSize = union.SizeFromMinPt(gtx.Constraints.Max)
 	w.curPosition = w.game.Position()
-	w.redraw = w.redraw || !w.curBoardSize.Eq(w.prevBoardSize) || w.positionChanged()
+	w.redraw = w.redraw || !w.curBoardSize.Eq(w.prevBoardSize) || w.PositionChanged()
 	defer func() {
 		w.redraw = false
 		w.prevBoardSize = w.curBoardSize
@@ -142,7 +143,7 @@ func (w *Widget) layout(gtx layout.Context) layout.Dimensions {
 	}
 
 	if w.selectedSquare != chess.NoSquare && w.selectedPiece.Color() == w.curPosition.Turn() {
-		w.markSquare(gtx, w.selectedSquare, util2.GrayColor)
+		w.markSquare(gtx, w.selectedSquare, coreutil.GrayColor)
 		if w.config.ShowHints {
 			for _, move := range w.curPosition.ValidMoves() {
 				if move.S1() == w.selectedSquare {
@@ -220,13 +221,13 @@ func (w *Widget) layout(gtx layout.Context) layout.Dimensions {
 		}
 	}
 
-	w.markSquare(gtx, w.promoteOn, util2.GrayColor)
+	w.markSquare(gtx, w.promoteOn, coreutil.GrayColor)
 	if w.promoteOn != chess.NoSquare {
 		Promotion{
 			Position:   w.squareOrigins[w.promoteOn],
 			SquareSize: w.squareSize,
 			Color:      w.selectedPiece.Color(),
-			Background: util2.WhiteColor,
+			Background: coreutil.WhiteColor,
 			Piece:      w.config.Piece,
 			Flipped:    w.flipped,
 		}.Layout(gtx)
@@ -235,25 +236,49 @@ func (w *Widget) layout(gtx layout.Context) layout.Dimensions {
 	return layout.Dimensions{Size: w.curBoardSize.Pt}
 }
 
-func (w *Widget) SetGame(game *chess.Game) {
+func (w *Widget) Reset() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	w.game = game
+	w.game = chess.NewGame(chess.UseNotation(chess.UCINotation{}))
+	w.curPosition = w.game.Position()
+	w.redraw = true
 }
 
-func (w *Widget) Flip(gtx layout.Context) {
+func (w *Widget) MoveBackward() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	w.putSelectedPieceBack(gtx)
-	w.unselectPiece(gtx)
+	moves := w.game.Moves()
+	if len(moves) > 0 {
+		w.game = chess.NewGame(chess.UseNotation(chess.UCINotation{}))
+		for _, move := range moves[:len(moves)-1] {
+			if err := w.game.Move(move); err != nil {
+				slog.Warn("can't replay game", "move", move.String(), "err", err)
+			}
+		}
+		w.curPosition = w.game.Position()
+		w.redraw = true
+	}
+}
+
+func (w *Widget) Flip() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.putSelectedPieceBack()
+	w.unselectPiece()
 	w.flipped = !w.flipped
 	w.redraw = true
-	gtx.Execute(op.InvalidateCmd{})
 }
 
-func (w *Widget) positionChanged() bool {
+func (w *Widget) PositionChanged() bool {
 	return w.prevPosition != nil && w.prevPosition.Hash() != w.curPosition.Hash()
+}
+
+func (w *Widget) Game() chess.Game {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return *w.game
 }
 
 func (w *Widget) drawPieces(gtx layout.Context) {
@@ -331,7 +356,7 @@ func (w *Widget) processPrimaryButtonClick(gtx layout.Context, e pointer.Event) 
 		fallthrough
 	case pointer.Release:
 		if w.selectedSquare == hoveredSquare {
-			w.putSelectedPieceBack(gtx)
+			w.putSelectedPieceBack()
 			return
 		}
 
@@ -347,7 +372,7 @@ func (w *Widget) processPrimaryButtonClick(gtx layout.Context, e pointer.Event) 
 
 					if err := w.game.MoveStr(move); err != nil {
 						slog.Error("can't make move", "err", err)
-						w.putSelectedPieceBack(gtx)
+						w.putSelectedPieceBack()
 					}
 
 					break
@@ -362,7 +387,7 @@ func (w *Widget) processPrimaryButtonClick(gtx layout.Context, e pointer.Event) 
 
 		fallthrough
 	default:
-		w.unselectPiece(gtx)
+		w.unselectPiece()
 		w.buttonPressed = 0
 		w.modifiersUsed = 0
 	}
@@ -378,7 +403,7 @@ func (w *Widget) processSecondaryButtonClick(gtx layout.Context, e pointer.Event
 			w.drawingAnno = Annotation{
 				Type:  w.annoType,
 				Start: hoveredSquare,
-				Color: util2.Transparentize(w.selectAnnotationColor(), 0.5),
+				Color: coreutil.Transparentize(w.selectAnnotationColor(), 0.5),
 				Width: union.SizeFromFloat(w.squareSize.Float / 9),
 			}
 			w.dragID = e.PointerID
@@ -461,16 +486,13 @@ func (w *Widget) dragTo(gtx layout.Context, pos f32.Point) {
 	})
 }
 
-func (w *Widget) putSelectedPieceBack(gtx layout.Context) {
+func (w *Widget) putSelectedPieceBack() {
 	if w.selectedSquare != chess.NoSquare {
 		w.draggingPos = w.squareOrigins[w.selectedSquare]
 	}
-
-	pointer.CursorPointer.Add(gtx.Ops)
-	gtx.Execute(op.InvalidateCmd{At: gtx.Now.Add(time.Second / 25)})
 }
 
-func (w *Widget) unselectPiece(gtx layout.Context) {
+func (w *Widget) unselectPiece() {
 	if w.selectedSquare != chess.NoSquare {
 		w.draggingPos = w.squareOrigins[w.selectedSquare]
 	}
@@ -479,9 +501,6 @@ func (w *Widget) unselectPiece(gtx layout.Context) {
 	w.selectedSquare = chess.NoSquare
 	w.selectedPiece = chess.NoPiece
 	w.dragID = 0
-
-	pointer.CursorPointer.Add(gtx.Ops)
-	gtx.Execute(op.InvalidateCmd{At: gtx.Now.Add(time.Second / 25)})
 }
 
 func (w *Widget) getLastMove() (m *chess.Move) {

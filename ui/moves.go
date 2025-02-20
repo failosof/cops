@@ -13,8 +13,10 @@ import (
 
 type MovesCountSelector struct {
 	min, max uint8
+	padding  unit.Dp
 	slider   material.SliderStyle
-	label    material.LabelStyle
+	hint     material.LabelStyle
+	count    material.LabelStyle
 }
 
 func NewMovesNumberSelector(th *material.Theme, min, max uint8) *MovesCountSelector {
@@ -22,22 +24,25 @@ func NewMovesNumberSelector(th *material.Theme, min, max uint8) *MovesCountSelec
 	slider := material.Slider(th, float)
 	slider.Color = util.GrayColor
 	return &MovesCountSelector{
-		min:    min,
-		max:    max,
-		slider: slider,
-		label:  material.Body1(th, "1"),
+		min:     min,
+		max:     max,
+		padding: unit.Dp(8),
+		slider:  slider,
+		hint:    material.Body1(th, "Moves"),
+		count:   material.Body1(th, "1"),
 	}
 }
 
 func (s *MovesCountSelector) Layout(gtx layout.Context) layout.Dimensions {
-	s.label.Text = fmt.Sprint(s.Count())
-	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+	s.count.Text = fmt.Sprint(s.Selected())
+	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+		layout.Rigid(Pad(s.padding, s.hint.Layout)),
 		layout.Flexed(1, s.slider.Layout),
-		layout.Rigid(Pad(unit.Dp(8), s.label.Layout)),
+		layout.Rigid(Pad(s.padding, s.count.Layout)),
 	)
 }
 
-func (s *MovesCountSelector) Count() (res uint8) {
+func (s *MovesCountSelector) Selected() (res uint8) {
 	percent := s.slider.Float.Value
 	from := float32(s.max - s.min + 1)
 	count := from * percent

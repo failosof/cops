@@ -53,7 +53,7 @@ func (s *State) SearchOpening(game *chess.Game) (name opening.Name, leftover []c
 		return
 	}
 
-	slog.Info("found opening", "family", candidate.Family(), "variation", candidate.Variation())
+	//slog.Info("found opening", "family", candidate.Family(), "variation", candidate.Variation())
 	name = candidate
 
 	return
