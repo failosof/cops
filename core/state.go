@@ -4,8 +4,9 @@ import (
 	"context"
 	"iter"
 	"log/slog"
+	"time"
 
-	"github.com/failosof/cops/lichess"
+	"github.com/failosof/cops/game"
 	"github.com/failosof/cops/opening"
 	"github.com/failosof/cops/puzzle"
 	"github.com/failosof/cops/util"
@@ -13,15 +14,37 @@ import (
 )
 
 type State struct {
+	openingRes OpeningResources
+	gameRes    GameResources
+	puzzleRes  PuzzleResources
+
 	openings *opening.Index
+	games    *game.Index
 	puzzles  *puzzle.Index
 }
 
-func LoadState(ctx context.Context, openingRes OpeningResources, puzzleRes PuzzleResources) (*State, error) {
+func LoadState(
+	ctx context.Context,
+	openingRes OpeningResources,
+	gameRes GameResources,
+	puzzleRes PuzzleResources,
+) (*State, error) {
 	openings, err := LoadOpeningsIndex(ctx, openingRes.DatabaseDir, openingRes.IndexFile)
 	if err != nil {
 		slog.Warn("failed to load opening resources")
 		return nil, err
+	}
+
+	games, err := LoadGamesIndex(ctx, gameRes.IndexFile)
+	if err != nil {
+		slog.Warn("failed to load games resources")
+		return nil, err
+	}
+
+	for id, moves := range *games {
+		if moves.Empty() {
+			slog.Warn("apparently empty game indexed", "id", id)
+		}
 	}
 
 	puzzles, err := LoadPuzzlesIndex(ctx, puzzleRes.DatabaseFile, puzzleRes.IndexFile)
@@ -31,9 +54,20 @@ func LoadState(ctx context.Context, openingRes OpeningResources, puzzleRes Puzzl
 	}
 
 	return &State{
-		openings: openings,
-		puzzles:  puzzles,
+		openingRes: openingRes,
+		gameRes:    gameRes,
+		puzzleRes:  puzzleRes,
+		openings:   openings,
+		games:      games,
+		puzzles:    puzzles,
 	}, nil
+}
+
+func (s *State) Save() {
+	if err := s.games.Save(s.gameRes.IndexFile); err != nil {
+		slog.Error("failed to save state", "err", err)
+	}
+	slog.Info("saved games index", "to", s.gameRes.IndexFile)
 }
 
 func (s *State) SearchOpening(game *chess.Game) (name opening.Name, leftover []*chess.Move) {
@@ -55,47 +89,96 @@ func (s *State) SearchOpening(game *chess.Game) (name opening.Name, leftover []*
 
 func (s *State) SearchPuzzles(
 	ctx context.Context,
-	game *chess.Game,
+	chessGame *chess.Game,
 	turn chess.Color,
-	minMoves, maxMoves uint8,
-) iter.Seq[[]puzzle.Data] {
+	maxMoves uint8,
+) iter.Seq[puzzle.Data] {
+	util.Assert(s.games != nil, "games must be loaded")
 	util.Assert(s.puzzles != nil, "puzzles must be loaded")
 
-	openingName, leftoverMoves := s.SearchOpening(game)
+	openingName, leftoverMoves := s.SearchOpening(chessGame)
 	if openingName.Empty() {
-		return func(yield func([]puzzle.Data) bool) {
+		return func(yield func(puzzle.Data) bool) {
 			return
 		}
 	}
 
-	return func(yield func([]puzzle.Data) bool) {
-		for puzzles, gameIDs := range s.puzzles.Search(openingName.Tag(), turn, minMoves, maxMoves) {
-			games, err := lichess.ExportGames(ctx, gameIDs)
-			if err != nil {
-				slog.Error("failed to export games", "ids", gameIDs, "err", err)
-				return
-			}
+	slog.Info("searching puzzles", "opening", openingName.String(), "leftover", leftoverMoves)
 
-			foundPuzzles := make([]puzzle.Data, 0, len(puzzles))
-			for _, game := range games {
-				if util.GameHasMoves(game, leftoverMoves) {
-					foundGameID := game.GetTagPair("GameId").Value
-					if len(foundGameID) > 0 {
-						for i, gameID := range gameIDs {
-							if gameID == foundGameID {
-								foundPuzzles = append(foundPuzzles, puzzles[i])
-								break
-							}
-						}
+	return func(yield func(puzzle.Data) bool) {
+		newGameIDs := make([]string, 0, game.MaxExportNumber)
+		unsentPuzzles := make([]puzzle.Data, 0, game.MaxExportNumber)
+		unusedLeftoverMovesSlice := make([][]*chess.Move, 0, game.MaxExportNumber)
+
+		for foundPuzzle := range s.puzzles.Search(openingName.Tag(), turn, maxMoves) {
+			moves := s.games.Search(foundPuzzle.GameID)
+			if moves.Empty() {
+				slog.Debug("puzzle game not indexed", "puzzle", foundPuzzle.ID, "game", foundPuzzle.GameID)
+
+				newGameIDs = append(newGameIDs, foundPuzzle.GameID.String())
+				unsentPuzzles = append(unsentPuzzles, foundPuzzle)
+				unusedLeftoverMovesSlice = append(unusedLeftoverMovesSlice, leftoverMoves)
+
+				if len(newGameIDs) == cap(newGameIDs) {
+					if s.processNewGames(ctx, newGameIDs, unsentPuzzles, unusedLeftoverMovesSlice, yield) {
+						return
 					}
-				}
-			}
 
-			if len(foundPuzzles) > 0 {
-				if !yield(foundPuzzles) {
+					newGameIDs = make([]string, 0, game.MaxExportNumber)
+					unsentPuzzles = make([]puzzle.Data, 0, game.MaxExportNumber)
+					unusedLeftoverMovesSlice = make([][]*chess.Move, 0, game.MaxExportNumber)
+				}
+			} else if moves.Contain(leftoverMoves) {
+				if !yield(foundPuzzle) {
 					return
 				}
 			}
 		}
+
+		if len(newGameIDs) > 0 {
+			if s.processNewGames(ctx, newGameIDs, unsentPuzzles, unusedLeftoverMovesSlice, yield) {
+				return
+			}
+		}
 	}
+}
+
+func (s *State) processNewGames(
+	ctx context.Context,
+	gameIDs []string,
+	puzzles []puzzle.Data,
+	leftoverMovesSlice [][]*chess.Move,
+	yield func(puzzle.Data) bool,
+) bool {
+	slog.Debug("exporting games from lichess", "count", len(gameIDs))
+	start := time.Now()
+	games, err := game.Export(ctx, gameIDs)
+	if err != nil {
+		slog.Error("failed to export games", "count", len(gameIDs), "err", err)
+		return true
+	}
+	slog.Debug("exported", "took", time.Since(start))
+
+	for _, chessGame := range games {
+		exportedGameID := game.IDFromString(chessGame.GetTagPair("GameId").Value)
+		s.games.InsertFromChess(exportedGameID, chessGame)
+
+		for i, newGameID := range gameIDs {
+			if newGameID == exportedGameID.String() {
+				foundPuzzle := puzzles[i]
+				leftoverMoves := leftoverMovesSlice[i]
+				gameMoves := s.games.Search(exportedGameID)
+
+				if !gameMoves.Empty() && gameMoves.Contain(leftoverMoves) {
+					if !yield(foundPuzzle) {
+						return true
+					}
+				}
+
+				break
+			}
+		}
+	}
+
+	return false
 }

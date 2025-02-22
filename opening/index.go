@@ -36,7 +36,7 @@ func (i *Index) Insert(name, moves string) error {
 	id := len(i.Names)
 	position := util.PositionFromChess(game.Position())
 	hash := position.Hash()
-	
+
 	i.Names = append(i.Names, ParseName(name))
 	i.Positions = append(i.Positions, position)
 	i.PositionIDs[hash] = id
@@ -51,6 +51,10 @@ func (i *Index) Search(position util.Position) (n Name) {
 		n = i.Names[id]
 	}
 	return
+}
+
+func (i *Index) Size() int {
+	return len(i.Names)
 }
 
 func CreateIndex(dir string) (*Index, error) {

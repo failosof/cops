@@ -39,6 +39,9 @@ func main() {
 			DatabaseDir: cache.PathTo("database"),
 			IndexFile:   cache.PathTo("openings.index"),
 		},
+		Game: core.GameResources{
+			IndexFile: cache.PathTo("games.index"),
+		},
 		Puzzle: core.PuzzleResources{
 			DatabaseFile: cache.PathTo("puzzles.csv.zst"),
 			IndexFile:    cache.PathTo("puzzles.index"),
@@ -49,7 +52,7 @@ func main() {
 		},
 	}
 
-	state, err := core.LoadState(ctx, resources.Opening, resources.Puzzle)
+	state, err := core.LoadState(ctx, resources.Opening, resources.Game, resources.Puzzle)
 	if err != nil {
 		slog.Error("failed to load state", "err", err)
 		os.Exit(1)

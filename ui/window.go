@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"strings"
-	"time"
 
 	"gioui.org/app"
 	"gioui.org/layout"
@@ -56,7 +55,7 @@ func NewWindow(state *core.State, chessRes core.ChessResources) (*Window, error)
 func (w *Window) Show(ctx context.Context) {
 	pgn := `1. d4 d5 2. c4 Nf6 3. Nc3 Bf5 4. cxd5 Nxd5 5. Qb3 Nxc3 6. bxc3 b6 7. d5 e6 8. c4 exd5 9. cxd5 Be4`
 	opt, _ := chess.PGN(strings.NewReader(pgn))
-	game := chess.NewGame(opt)
+	game := chess.NewGame(opt, chess.UseNotation(chess.UCINotation{}))
 
 	w.window.Option(app.Title("Chess Opening Puzzle Search"))
 	w.window.Option(app.MinSize(unit.Dp(820), unit.Dp(620)))
@@ -79,9 +78,12 @@ func (w *Window) Show(ctx context.Context) {
 	go func() {
 		if err := w.update(ctx); err != nil {
 			slog.Error("main window update", "err", err)
+			w.state.Save()
 			os.Exit(1)
+		} else {
+			w.state.Save()
+			os.Exit(0)
 		}
-		os.Exit(0)
 	}()
 
 	app.Main()
@@ -138,16 +140,15 @@ func (w *Window) handleBoard(gtx layout.Context) {
 func (w *Window) handleSearch(ctx context.Context, gtx layout.Context) {
 	if w.search.button.Clicked(gtx) {
 		game := w.board.Game()
-		minMoves := uint8(len(game.Moves()) / 2)
 		maxMoves := w.moves.Selected()
-		if minMoves > 0 && maxMoves > 0 {
+		if maxMoves > 0 {
 			w.puzzles.Clear()
 			turn := w.turn.Selected()
 			//go func() {
-			for puzzles := range w.state.SearchPuzzles(ctx, &game, turn, minMoves, maxMoves) {
-				w.puzzles.Append(puzzles)
-				redraw(gtx)
+			for puzzle := range w.state.SearchPuzzles(ctx, &game, turn, maxMoves) {
+				w.puzzles.Append(puzzle)
 			}
+			redraw(gtx)
 			//}()
 		}
 	}
@@ -193,5 +194,7 @@ func (w *Window) layoutSearchPane(gtx layout.Context) layout.Dimensions {
 }
 
 func redraw(gtx layout.Context) {
-	gtx.Execute(op.InvalidateCmd{At: gtx.Now.Add(time.Second / 25)})
+	gtx.Execute(op.InvalidateCmd{
+		//At: gtx.Now.Add(time.Second / 25),
+	})
 }

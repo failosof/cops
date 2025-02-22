@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/failosof/cops/lichess"
+	"github.com/failosof/cops/game"
 	"github.com/failosof/cops/opening"
 	"github.com/failosof/cops/puzzle"
 	"github.com/failosof/cops/util"
@@ -16,6 +16,7 @@ import (
 
 type Resources struct {
 	Opening OpeningResources
+	Game    GameResources
 	Puzzle  PuzzleResources
 	Chess   ChessResources
 }
@@ -23,6 +24,10 @@ type Resources struct {
 type OpeningResources struct {
 	DatabaseDir string
 	IndexFile   string
+}
+
+type GameResources struct {
+	IndexFile string
 }
 
 type PuzzleResources struct {
@@ -42,12 +47,12 @@ func LoadOpeningsIndex(ctx context.Context, dbDir, indexFile string) (*opening.I
 	}
 
 	if util.FileExists(indexFile) {
-		slog.Info("loading openings index", "from", indexFile)
 		openings, err := util.LoadBinary[opening.Index](indexFile)
 		if err != nil {
 			slog.Warn("failed to load openings index")
 			return nil, err
 		}
+		slog.Info("loaded openings index", "from", indexFile, "size", openings.Size())
 		return openings, nil
 	}
 
@@ -81,20 +86,39 @@ func LoadOpeningsIndex(ctx context.Context, dbDir, indexFile string) (*opening.I
 	return openings, nil
 }
 
+func LoadGamesIndex(ctx context.Context, indexFile string) (*game.Index, error) {
+	if !util.FileExists(indexFile) {
+		slog.Info("downloading games index", "from", game.IndexURL, "to", indexFile)
+		if err := util.Download(ctx, game.IndexURL, indexFile); err != nil {
+			slog.Warn("failed to download games index")
+			return nil, err
+		}
+	}
+
+	games, err := util.LoadBinary[game.Index](indexFile)
+	if err != nil {
+		slog.Warn("failed to load games index")
+		return nil, err
+	}
+	slog.Info("loaded games index", "from", indexFile, "size", games.Size())
+
+	return games, nil
+}
+
 func LoadPuzzlesIndex(ctx context.Context, dbFile, indexFile string) (*puzzle.Index, error) {
 	if util.FileExists(indexFile) {
-		slog.Info("loading puzzles index", "from", indexFile)
 		puzzles, err := util.LoadBinary[puzzle.Index](indexFile)
 		if err != nil {
 			slog.Warn("failed to load puzzles index")
 			return nil, err
 		}
+		slog.Info("loaded puzzles index", "from", indexFile, "size", puzzles.Size())
 		return puzzles, nil
 	}
 
 	if !util.FileExists(dbFile) {
-		slog.Info("downloading puzzles database", "from", lichess.PuzzleDatabaseURL, "to", dbFile)
-		if err := util.Download(ctx, lichess.PuzzleDatabaseURL, dbFile); err != nil {
+		slog.Info("downloading puzzles database", "from", puzzle.DatabaseURL, "to", dbFile)
+		if err := util.Download(ctx, puzzle.DatabaseURL, dbFile); err != nil {
 			slog.Warn("failed to download puzzles database")
 			return nil, fmt.Errorf("failed to download: %w", err)
 		}

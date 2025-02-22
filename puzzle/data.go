@@ -6,10 +6,12 @@ import (
 	"strings"
 	"unsafe"
 
-	"github.com/failosof/cops/lichess"
+	"github.com/failosof/cops/game"
 	"github.com/failosof/cops/util"
 	"github.com/notnil/chess"
 )
+
+const DatabaseURL = "https://database.lichess.org/lichess_db_puzzle.csv.zst"
 
 type ID [5]uint8
 
@@ -17,17 +19,11 @@ func (id ID) String() string {
 	return string(id[:])
 }
 
-type GameID [8]uint8
-
-func (id GameID) String() string {
-	return string(id[:])
-}
-
 type Data struct {
 	Move   uint8
 	Turn   chess.Color
 	ID     ID
-	GameID GameID
+	GameID game.ID
 }
 
 func NewData(id, gameURL, fen string) (d Data, err error) {
@@ -45,18 +41,13 @@ func NewData(id, gameURL, fen string) (d Data, err error) {
 	d.Turn = d.Turn.Other()
 
 	copy(d.ID[:], id)
-	copy(d.GameID[:], lichess.GameID(gameURL))
+	d.GameID = game.IDFromURL(gameURL)
 
 	return
 }
 
 func (d Data) URL() (url string) {
-	url = lichess.Puzzle(d.ID.String())
-	return
-}
-
-func (d Data) GameURL() (url string) {
-	url = lichess.Game(d.GameID.String())
+	url = "https://lichess.org/training/" + d.ID.String()
 	return
 }
 

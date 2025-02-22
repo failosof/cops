@@ -66,6 +66,7 @@ func PlayingTurn(fen []string) (c chess.Color, err error) {
 	return
 }
 
+// todo: remove
 func GameHasMoves(game *chess.Game, moves []*chess.Move) bool {
 	var i, j int
 	gameMoves := game.Moves()
@@ -80,5 +81,5 @@ func GameHasMoves(game *chess.Game, moves []*chess.Move) bool {
 		i++
 	}
 
-	return j != 0
+	return j == len(moves)
 }

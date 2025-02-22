@@ -8,10 +8,8 @@ import (
 	"iter"
 	"log/slog"
 	"os"
-	"slices"
 	"strings"
 
-	"github.com/failosof/cops/lichess"
 	"github.com/klauspost/compress/zstd"
 	"github.com/notnil/chess"
 )
@@ -39,27 +37,23 @@ func (i *Index) Insert(puzzleID, fen, gameURL, openingTags string) error {
 	return nil
 }
 
-func (i *Index) Search(openingTag string, side chess.Color, minMoves, maxMoves uint8) iter.Seq2[[]Data, []string] {
-	return func(yield func([]Data, []string) bool) {
-		for ids := range slices.Chunk(i.ByOpeningTag[openingTag], lichess.MaxExportGames) {
-			puzzles := make([]Data, 0, len(ids))
-			gameIDs := make([]string, 0, len(ids))
-			for _, id := range ids {
-				puzzle := i.Collection[id]
-				if side == chess.NoColor || puzzle.Turn == side {
-					if minMoves >= puzzle.Move && puzzle.Move <= maxMoves {
-						puzzles = append(puzzles, puzzle)
-						gameIDs = append(gameIDs, puzzle.GameID.String())
+func (i *Index) Search(openingTag string, side chess.Color, maxMoves uint8) iter.Seq[Data] {
+	return func(yield func(Data) bool) {
+		for _, id := range i.ByOpeningTag[openingTag] {
+			puzzle := i.Collection[id]
+			if side == chess.NoColor || puzzle.Turn == side {
+				if puzzle.Move <= maxMoves {
+					if !yield(puzzle) {
+						return
 					}
-				}
-			}
-			if len(puzzles) > 0 {
-				if !yield(puzzles, gameIDs) {
-					return
 				}
 			}
 		}
 	}
+}
+
+func (i *Index) Size() int {
+	return len(i.Collection)
 }
 
 func CreateIndex(from string) (*Index, error) {
