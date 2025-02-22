@@ -40,8 +40,9 @@ func (l *PuzzleList) Clear() {
 	l.editor.SetText("")
 }
 
-func (l *PuzzleList) Set(puzzles []puzzle.Data) {
+func (l *PuzzleList) Append(puzzles []puzzle.Data) {
 	var list strings.Builder
+	list.WriteString(l.editor.Text())
 	for _, puzzleData := range puzzles {
 		list.WriteString(puzzleData.URL())
 		list.WriteRune('\n')

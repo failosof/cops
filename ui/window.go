@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"gioui.org/app"
@@ -16,6 +17,7 @@ import (
 	"github.com/failosof/cops/core"
 	"github.com/failosof/cops/ui/board"
 	"github.com/failosof/cops/util"
+	"github.com/notnil/chess"
 )
 
 type Window struct {
@@ -52,6 +54,10 @@ func NewWindow(state *core.State, chessRes core.ChessResources) (*Window, error)
 }
 
 func (w *Window) Show(ctx context.Context) {
+	pgn := `1. d4 d5 2. c4 Nf6 3. Nc3 Bf5 4. cxd5 Nxd5 5. Qb3 Nxc3 6. bxc3 b6 7. d5 e6 8. c4 exd5 9. cxd5 Be4`
+	opt, _ := chess.PGN(strings.NewReader(pgn))
+	game := chess.NewGame(opt)
+
 	w.window.Option(app.Title("Chess Opening Puzzle Search"))
 	w.window.Option(app.MinSize(unit.Dp(820), unit.Dp(620)))
 	w.window.Option(app.MaxSize(unit.Dp(820), unit.Dp(620)))
@@ -60,10 +66,13 @@ func (w *Window) Show(ctx context.Context) {
 
 	w.opening = NewOpeningName(th)
 	w.board = chessboard.NewWidget(th, w.chessBoardConfig)
+	w.board.SetGame(game)
 	w.controls = NewBoardControls(th)
 
 	w.moves = NewMovesNumberSelector(th, 1, 40)
+	w.moves.Set(12)
 	w.turn = NewTurnSelector(th)
+	w.turn.group.Value = "w"
 	w.puzzles = NewPuzzleList(th)
 	w.search = NewIconButton(th, SearchIcon, util.GreenColor)
 
@@ -94,7 +103,7 @@ func (w *Window) update(ctx context.Context) error {
 			gtx := app.NewContext(&ops, e)
 			w.handleControls(gtx)
 			w.handleBoard(gtx)
-			w.handleSearch(gtx)
+			w.handleSearch(ctx, gtx)
 			w.layoutWidgets(gtx)
 			e.Frame(gtx.Ops)
 		}
@@ -126,18 +135,20 @@ func (w *Window) handleBoard(gtx layout.Context) {
 	//}
 }
 
-func (w *Window) handleSearch(gtx layout.Context) {
+func (w *Window) handleSearch(ctx context.Context, gtx layout.Context) {
 	if w.search.button.Clicked(gtx) {
-		openingName := w.opening.name
 		game := w.board.Game()
-		minMoves := uint8(len(game.Moves()))
+		minMoves := uint8(len(game.Moves()) / 2)
 		maxMoves := w.moves.Selected()
-		if !openingName.Empty() && minMoves > 0 && maxMoves > 0 {
+		if minMoves > 0 && maxMoves > 0 {
 			w.puzzles.Clear()
 			turn := w.turn.Selected()
-			puzzles := w.state.SearchPuzzles(openingName, turn, minMoves, maxMoves)
-			w.puzzles.Set(puzzles)
-			redraw(gtx)
+			//go func() {
+			for puzzles := range w.state.SearchPuzzles(ctx, &game, turn, minMoves, maxMoves) {
+				w.puzzles.Append(puzzles)
+				redraw(gtx)
+			}
+			//}()
 		}
 	}
 }

@@ -2,8 +2,10 @@ package core
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 
+	"github.com/failosof/cops/lichess"
 	"github.com/failosof/cops/opening"
 	"github.com/failosof/cops/puzzle"
 	"github.com/failosof/cops/util"
@@ -34,46 +36,66 @@ func LoadState(ctx context.Context, openingRes OpeningResources, puzzleRes Puzzl
 	}, nil
 }
 
-func (s *State) SearchOpening(game *chess.Game) (name opening.Name, leftover []chess.Move) {
+func (s *State) SearchOpening(game *chess.Game) (name opening.Name, leftover []*chess.Move) {
 	util.Assert(s.openings != nil, "openings must be loaded")
 
 	positions := game.Positions()
-	i := len(positions) - 1
-	var candidate opening.Name
-	var pos util.Position
-	for ; i >= 0; i-- {
-		pos = util.PositionFromChess(positions[i])
-		candidate = s.openings.Search(pos)
-		if !candidate.Empty() {
+	for i := 1; i < len(positions); i++ {
+		pos := util.PositionFromChess(positions[i])
+		candidate := s.openings.Search(pos)
+		if candidate.Empty() {
+			leftover = game.Moves()[i-1:]
 			break
 		}
+		name = candidate
 	}
-	if i == 0 {
-		slog.Warn("no opening found")
-		return
-	}
-
-	//slog.Info("found opening", "family", candidate.Family(), "variation", candidate.Variation())
-	name = candidate
 
 	return
 }
 
 func (s *State) SearchPuzzles(
-	openingName opening.Name,
+	ctx context.Context,
+	game *chess.Game,
 	turn chess.Color,
 	minMoves, maxMoves uint8,
-) (puzzles []puzzle.Data) {
+) iter.Seq[[]puzzle.Data] {
 	util.Assert(s.puzzles != nil, "puzzles must be loaded")
 
-	puzzles = s.puzzles.Search(openingName.Tag(), turn, minMoves, maxMoves)
-	if len(puzzles) == 0 {
-		slog.Warn("no puzzles found")
-		return nil
+	openingName, leftoverMoves := s.SearchOpening(game)
+	if openingName.Empty() {
+		return func(yield func([]puzzle.Data) bool) {
+			return
+		}
 	}
-	slog.Info("found puzzles", "count", len(puzzles))
 
-	// todo: filter out puzzles by moves after the opening
+	return func(yield func([]puzzle.Data) bool) {
+		for puzzles, gameIDs := range s.puzzles.Search(openingName.Tag(), turn, minMoves, maxMoves) {
+			games, err := lichess.ExportGames(ctx, gameIDs)
+			if err != nil {
+				slog.Error("failed to export games", "ids", gameIDs, "err", err)
+				return
+			}
 
-	return
+			foundPuzzles := make([]puzzle.Data, 0, len(puzzles))
+			for _, game := range games {
+				if util.GameHasMoves(game, leftoverMoves) {
+					foundGameID := game.GetTagPair("GameId").Value
+					if len(foundGameID) > 0 {
+						for i, gameID := range gameIDs {
+							if gameID == foundGameID {
+								foundPuzzles = append(foundPuzzles, puzzles[i])
+								break
+							}
+						}
+					}
+				}
+			}
+
+			if len(foundPuzzles) > 0 {
+				if !yield(foundPuzzles) {
+					return
+				}
+			}
+		}
+	}
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -28,7 +29,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	handler := slog.NewTextHandler(logFile, &slog.HandlerOptions{
+	handler := slog.NewTextHandler(io.MultiWriter(os.Stdout, logFile), &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	})
 	slog.SetDefault(slog.New(handler))

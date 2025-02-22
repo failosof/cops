@@ -46,5 +46,9 @@ func SaveBinary[T any](filename string, t *T) error {
 		return fmt.Errorf("failed to write binary file: %w", err)
 	}
 
+	if err := file.Sync(); err != nil {
+		return fmt.Errorf("failed to sync binary file: %w", err)
+	}
+
 	return nil
 }

@@ -65,3 +65,20 @@ func PlayingTurn(fen []string) (c chess.Color, err error) {
 	}
 	return
 }
+
+func GameHasMoves(game *chess.Game, moves []*chess.Move) bool {
+	var i, j int
+	gameMoves := game.Moves()
+	for i < len(gameMoves) && j < len(moves) {
+		sameMove := *gameMoves[i] == *moves[j]
+		if j > 0 && !sameMove {
+			return false
+		}
+		if sameMove {
+			j++
+		}
+		i++
+	}
+
+	return j != 0
+}

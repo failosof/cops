@@ -533,3 +533,9 @@ func (w *Widget) selectAnnotationColor() color.NRGBA {
 		return w.config.Color.Primary
 	}
 }
+
+func (w *Widget) SetGame(game *chess.Game) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.game = game
+}

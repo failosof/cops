@@ -39,6 +39,10 @@ func Download(ctx context.Context, from, to string) error {
 		return fmt.Errorf("failed to save file: %w", err)
 	}
 
+	if err := file.Sync(); err != nil {
+		return fmt.Errorf("failed to sync file: %w", err)
+	}
+
 	downloaded = true
 	return nil
 }

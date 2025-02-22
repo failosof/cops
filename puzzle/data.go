@@ -11,11 +11,23 @@ import (
 	"github.com/notnil/chess"
 )
 
+type ID [5]uint8
+
+func (id ID) String() string {
+	return string(id[:])
+}
+
+type GameID [8]uint8
+
+func (id GameID) String() string {
+	return string(id[:])
+}
+
 type Data struct {
 	Move   uint8
 	Turn   chess.Color
-	ID     [5]uint8
-	GameID [8]uint8
+	ID     ID
+	GameID GameID
 }
 
 func NewData(id, gameURL, fen string) (d Data, err error) {
@@ -28,6 +40,10 @@ func NewData(id, gameURL, fen string) (d Data, err error) {
 	d.Move, err = util.MoveNumber(fenParts)
 	d.Turn, err = util.PlayingTurn(fenParts)
 
+	// puzzle saved position is one ply behind
+	// thus it has an inverse turn encoded
+	d.Turn = d.Turn.Other()
+
 	copy(d.ID[:], id)
 	copy(d.GameID[:], lichess.GameID(gameURL))
 
@@ -35,14 +51,12 @@ func NewData(id, gameURL, fen string) (d Data, err error) {
 }
 
 func (d Data) URL() (url string) {
-	id := string(d.ID[:])
-	url = lichess.Puzzle(id)
+	url = lichess.Puzzle(d.ID.String())
 	return
 }
 
 func (d Data) GameURL() (url string) {
-	id := string(d.GameID[:])
-	url = lichess.Game(id)
+	url = lichess.Game(d.GameID.String())
 	return
 }
 
