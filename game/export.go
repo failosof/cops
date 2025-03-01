@@ -61,7 +61,7 @@ func Export(ctx context.Context, ids []string) ([]*chess.Game, error) {
 	return games, nil
 }
 
-var limiter = rate.NewLimiter(rate.Every(2*time.Second), 1)
+var limiter = rate.NewLimiter(rate.Every(3*time.Second), 1)
 
 func perform(ctx context.Context, req *http.Request) (*http.Response, error) {
 	for i := 0; i < 3; i++ {

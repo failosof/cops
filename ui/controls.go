@@ -52,3 +52,17 @@ func (c *BoardControls) ShouldMoveForward(gtx layout.Context) bool {
 func (c *BoardControls) ShouldFlip(gtx layout.Context) bool {
 	return c.flip.button.Clicked(gtx)
 }
+
+func (c *BoardControls) Brighten() {
+	c.reset.Brighten()
+	c.backward.Brighten()
+	c.forward.Brighten()
+	c.flip.Brighten()
+}
+
+func (c *BoardControls) Fade() {
+	c.reset.Fade()
+	c.backward.Fade()
+	c.forward.Fade()
+	c.flip.Fade()
+}

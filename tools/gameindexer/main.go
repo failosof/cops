@@ -16,6 +16,7 @@ import (
 	"github.com/failosof/cops/game"
 	"github.com/failosof/cops/util"
 	"github.com/goccy/go-json"
+	"golang.org/x/exp/mmap"
 )
 
 var (
@@ -103,14 +104,16 @@ loop:
 }
 
 func processFile(filename string) (game.Index, error) {
-	file, err := os.Open(filename)
+	file, err := mmap.Open(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file %q: %w", filename, err)
 	}
 	defer file.Close()
 
 	index := make(game.Index, FileRecords)
-	decoder := json.NewDecoder(file)
+	
+	sr := io.NewSectionReader(file, 0, int64(file.Len()))
+	decoder := json.NewDecoder(sr)
 	for {
 		var record Record
 		if err := decoder.Decode(&record); err != nil {

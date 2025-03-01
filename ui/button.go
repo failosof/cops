@@ -19,9 +19,11 @@ var (
 	BackwardIcon Icon = icons.NavigationArrowBack
 	ForwardIcon  Icon = icons.NavigationArrowForward
 	SearchIcon   Icon = icons.ActionSearch
+	CancelIcon   Icon = icons.NavigationCancel
 )
 
 type IconButton struct {
+	color  color.NRGBA
 	icon   *widget.Icon
 	button *widget.Clickable
 	style  material.ButtonLayoutStyle
@@ -33,6 +35,7 @@ func NewIconButton(th *material.Theme, name Icon, color color.NRGBA) *IconButton
 	style := material.ButtonLayout(th, button)
 	style.Background = color
 	return &IconButton{
+		color:  color,
 		icon:   icon,
 		button: button,
 		style:  style,
@@ -47,4 +50,12 @@ func (b *IconButton) Layout(gtx layout.Context) layout.Dimensions {
 			}),
 		)
 	}))
+}
+
+func (b *IconButton) Brighten() {
+	b.style.Background = b.color
+}
+
+func (b *IconButton) Fade() {
+	b.style.Background = util.Transparentize(b.color, 0.7)
 }
