@@ -19,7 +19,6 @@ import (
 	"gioui.org/widget/material"
 	"github.com/failosof/cops/ui/board/union"
 	"github.com/failosof/cops/ui/board/util"
-	coreutil "github.com/failosof/cops/util"
 	"github.com/notnil/chess"
 )
 
@@ -32,7 +31,7 @@ import (
 type Widget struct {
 	th *material.Theme
 
-	config Config
+	config *Config
 
 	redraw bool
 
@@ -72,7 +71,7 @@ type Widget struct {
 	mu sync.Mutex
 }
 
-func NewWidget(th *material.Theme, config Config) *Widget {
+func NewWidget(th *material.Theme, config *Config) *Widget {
 	w := Widget{
 		th:                th,
 		config:            config,
@@ -124,8 +123,8 @@ func (w *Widget) layout(gtx layout.Context) layout.Dimensions {
 
 		cache := new(op.Ops)
 		boardMacro := op.Record(cache)
-		factor := w.curBoardSize.F32.Div(w.config.BoardImageSize.Float)
-		util.DrawImage(cache, w.config.BoardImage, image.Point{}, factor)
+		factor := w.curBoardSize.F32.Div(w.config.BoardTexture.Size.Float)
+		util.DrawImage(cache, w.config.BoardTexture.Image, image.Point{}, factor)
 		w.boardDrawingOp = boardMacro.Stop()
 	}
 
@@ -137,23 +136,23 @@ func (w *Widget) layout(gtx layout.Context) layout.Dimensions {
 	if w.config.ShowLastMove {
 		lastMove := w.getLastMove()
 		if lastMove != nil {
-			w.markSquare(gtx, lastMove.S1(), w.config.Color.LastMove)
-			w.markSquare(gtx, lastMove.S2(), w.config.Color.LastMove)
+			w.markSquare(gtx, lastMove.S1(), w.config.Colors.LastMove)
+			w.markSquare(gtx, lastMove.S2(), w.config.Colors.LastMove)
 		}
 	}
 
 	if w.selectedSquare != chess.NoSquare && w.selectedPiece.Color() == w.curPosition.Turn() {
-		w.markSquare(gtx, w.selectedSquare, coreutil.GrayColor)
+		w.markSquare(gtx, w.selectedSquare, w.config.Colors.Highlight)
 		if w.config.ShowHints {
 			for _, move := range w.curPosition.ValidMoves() {
 				if move.S1() == w.selectedSquare {
 					position := w.squareOrigins[move.S2()]
 					if w.curPosition.Board().Piece(move.S2()) == chess.NoPiece {
 						origin := position.F32.Add(w.squareSize.Half.F32).Sub(w.hintSize.Half.F32).Round()
-						util.DrawEllipse(gtx.Ops, util.Rect(origin, w.hintSize.Pt), w.config.Color.Hint)
+						util.DrawEllipse(gtx.Ops, util.Rect(origin, w.hintSize.Pt), w.config.Colors.Hint)
 					} else {
 						rect := util.Rect(position.Pt, w.squareSize.Pt)
-						util.DrawRectangle(gtx.Ops, rect, w.squareSize.Float/5, w.config.Color.Hint)
+						util.DrawRectangle(gtx.Ops, rect, w.squareSize.Float/5, w.config.Colors.Hint)
 					}
 				}
 			}
@@ -221,15 +220,15 @@ func (w *Widget) layout(gtx layout.Context) layout.Dimensions {
 		}
 	}
 
-	w.markSquare(gtx, w.promoteOn, coreutil.GrayColor)
+	w.markSquare(gtx, w.promoteOn, w.config.Colors.Highlight)
 	if w.promoteOn != chess.NoSquare {
 		Promotion{
-			Position:   w.squareOrigins[w.promoteOn],
-			SquareSize: w.squareSize,
-			Color:      w.selectedPiece.Color(),
-			Background: coreutil.WhiteColor,
-			Piece:      w.config.Piece,
-			Flipped:    w.flipped,
+			Position:      w.squareOrigins[w.promoteOn],
+			SquareSize:    w.squareSize,
+			Color:         w.selectedPiece.Color(),
+			Background:    w.config.Colors.Empty,
+			PieceTextures: w.config.PieceTextures,
+			Flipped:       w.flipped,
 		}.Layout(gtx)
 	}
 
@@ -295,10 +294,10 @@ func (w *Widget) drawPieces(gtx layout.Context) {
 				wg.Add(1)
 				go func(square chess.Square, piece chess.Piece) {
 					defer wg.Done()
-					factor := w.squareSize.F32.Div(w.config.Piece.Sizes[piece].Float)
+					factor := w.squareSize.F32.Div(w.config.PieceTextures[piece].Size.Float)
 					cache := new(op.Ops)
 					squareMacro := op.Record(cache)
-					util.DrawImage(cache, w.config.Piece.Images[piece], origin.Pt, factor)
+					util.DrawImage(cache, w.config.PieceTextures[piece].Image, origin.Pt, factor)
 					ops := squareMacro.Stop()
 					w.squareDrawingOps[square] = &ops
 				}(square, piece)
@@ -327,8 +326,8 @@ func (w *Widget) drawPieces(gtx layout.Context) {
 	}
 
 	if w.selectedSquare != chess.NoSquare && w.promoteOn == chess.NoSquare {
-		img := w.config.Piece.Images[w.selectedPiece]
-		factor := w.squareSize.F32.Div(w.config.Piece.Sizes[w.selectedPiece].Float)
+		img := w.config.PieceTextures[w.selectedPiece].Image
+		factor := w.squareSize.F32.Div(w.config.PieceTextures[w.selectedPiece].Size.Float)
 		util.DrawImage(gtx.Ops, img, w.draggingPos.Pt, factor)
 	}
 }
@@ -403,7 +402,7 @@ func (w *Widget) processSecondaryButtonClick(gtx layout.Context, e pointer.Event
 			w.drawingAnno = Annotation{
 				Type:  w.annoType,
 				Start: hoveredSquare,
-				Color: coreutil.Transparentize(w.selectAnnotationColor(), 0.5),
+				Color: w.selectAnnotationColor(),
 				Width: union.SizeFromFloat(w.squareSize.Float / 9),
 			}
 			w.dragID = e.PointerID
@@ -520,17 +519,17 @@ func (w *Widget) markSquare(gtx layout.Context, square chess.Square, color color
 
 func (w *Widget) selectAnnotationColor() color.NRGBA {
 	if w.modifiersUsed == 0 {
-		return w.config.Color.Primary
+		return w.config.Colors.Primary
 	}
 
 	if w.modifiersUsed&key.ModAlt == key.ModAlt {
-		return w.config.Color.Warning
+		return w.config.Colors.Warning
 	} else if w.modifiersUsed&key.ModShift == key.ModShift {
-		return w.config.Color.Info
+		return w.config.Colors.Info
 	} else if w.modifiersUsed&key.ModCtrl == key.ModCtrl {
-		return w.config.Color.Danger
+		return w.config.Colors.Danger
 	} else {
-		return w.config.Color.Primary
+		return w.config.Colors.Primary
 	}
 }
 

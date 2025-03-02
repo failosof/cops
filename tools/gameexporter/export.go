@@ -1,4 +1,4 @@
-package game
+package main
 
 import (
 	"bytes"
@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/failosof/cops/util"
 	"github.com/notnil/chess"
 	"golang.org/x/time/rate"
 )
@@ -20,8 +19,6 @@ const (
 )
 
 func Export(ctx context.Context, ids []string) ([]*chess.Game, error) {
-	util.Assert(len(ids) <= MaxExportNumber, "can't export more than 300 games")
-
 	body := strings.NewReader(strings.Join(ids, ","))
 	req, err := http.NewRequest(http.MethodPost, ExportGamesURL, body)
 	if err != nil {

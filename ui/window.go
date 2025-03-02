@@ -2,10 +2,8 @@ package ui
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"os"
-	"strings"
 	"sync/atomic"
 
 	"gioui.org/app"
@@ -15,18 +13,15 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"github.com/failosof/cops/core"
-	"github.com/failosof/cops/puzzle"
 	"github.com/failosof/cops/ui/board"
-	"github.com/failosof/cops/util"
-	"github.com/notnil/chess"
 )
 
-type Window struct {
-	index            *core.State
-	window           *app.Window
-	chessBoardConfig chessboard.Config
+const PageSize = 25 // puzzles on one page
 
+type Window struct {
+	window  *app.Window
 	padding unit.Dp
+	theme   *material.Theme
 
 	opening       *OpeningName
 	board         *chessboard.Widget
@@ -36,52 +31,39 @@ type Window struct {
 	turn    *TurnSelector
 	puzzles *PuzzleList
 	search  *IconButton
-	cancel  *IconButton
 
-	searching atomic.Bool
-	loaded    atomic.Bool
-	results   []puzzle.Data
+	resourcesLoaded  atomic.Bool
+	loadingStatus    string
+	index            *core.Index
+	chessBoardConfig *chessboard.Config
+
+	searching     atomic.Bool
+	puzzlesLoaded atomic.Bool
+	results       []core.PuzzleData
 }
 
-func NewWindow(state *core.State, chessRes core.ChessResources) (*Window, error) {
-	config, err := chessboard.NewConfig(chessRes.BackgroundFile, chessRes.PiecesDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to config chess board widget: %w", err)
-	}
-	config.ShowHints = true
-	config.ShowLastMove = true
-
+func NewWindow() (*Window, error) {
 	return &Window{
-		index:            state,
-		window:           new(app.Window),
-		chessBoardConfig: config,
-		padding:          unit.Dp(3),
+		window:  new(app.Window),
+		padding: unit.Dp(3),
 	}, nil
 }
 
 func (w *Window) Show(ctx context.Context) {
-	pgn := `1. d4 d5 2. c4 Nf6 3. Nc3 Bf5 4. cxd5 Nxd5 5. Qb3 Nxc3 6. bxc3 b6 7. d5 e6 8. c4 exd5 9. cxd5 Be4`
-	opt, _ := chess.PGN(strings.NewReader(pgn))
-	game := chess.NewGame(opt, chess.UseNotation(chess.UCINotation{}))
-
 	w.window.Option(app.Title("Chess Opening Puzzle Search"))
 	w.window.Option(app.MinSize(unit.Dp(820), unit.Dp(620)))
 	w.window.Option(app.MaxSize(unit.Dp(820), unit.Dp(620)))
 
-	th := material.NewTheme()
+	w.theme = material.NewTheme()
 
-	w.opening = NewOpeningName(th)
-	w.board = chessboard.NewWidget(th, w.chessBoardConfig)
-	w.board.SetGame(game)
-	w.boardControls = NewBoardControls(th)
+	w.loadingStatus = "Loading..."
+	w.opening = NewOpeningName(w.theme)
+	w.boardControls = NewBoardControls(w.theme)
 
-	w.moves = NewMovesNumberSelector(th, 1, 40)
-	w.moves.Set(12)
-	w.turn = NewTurnSelector(th)
-	w.turn.group.Value = "w"
-	w.puzzles = NewPuzzleList(th)
-	w.search = NewIconButton(th, SearchIcon, util.GreenColor)
-	w.cancel = NewIconButton(th, CancelIcon, util.RedColor)
+	w.moves = NewMovesNumberSelector(w.theme, 1, 40)
+	w.turn = NewTurnSelector(w.theme)
+	w.puzzles = NewPuzzleList(w.theme)
+	w.search = NewIconButton(w.theme, SearchIcon, GreenColor)
 
 	go func() {
 		if err := w.update(ctx); err != nil {
@@ -92,31 +74,58 @@ func (w *Window) Show(ctx context.Context) {
 		}
 	}()
 
+	go func() {
+		var err error
+
+		w.index, err = core.LoadIndex()
+		if err != nil {
+			slog.Error("failed to load index", "err", err)
+			w.loadingStatus = "Index load error"
+			return
+		}
+
+		w.chessBoardConfig, err = LoadChessBoardConfig()
+		if err != nil {
+			slog.Error("failed to load chess board config", "err", err)
+			w.loadingStatus = "Assets load error"
+			return
+		}
+		w.chessBoardConfig.ShowHints = true
+		w.chessBoardConfig.ShowLastMove = true
+
+		w.board = chessboard.NewWidget(w.theme, w.chessBoardConfig)
+
+		w.resourcesLoaded.Store(true)
+	}()
+
 	app.Main()
 }
 
 func (w *Window) update(ctx context.Context) error {
 	var ops op.Ops
 	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
-		}
-
 		switch e := w.window.Event().(type) {
 		case app.DestroyEvent:
 			return e.Err
 		case app.FrameEvent:
-			gtx := app.NewContext(&ops, e)
-			if w.searching.Load() {
-				w.handleCancel(gtx)
-			} else {
-				w.handleControls(gtx)
-				w.handleBoard(gtx)
-				w.handleSearch(gtx)
+			select {
+			case <-ctx.Done():
+				return nil
+			default:
 			}
-			w.layoutWidgets(gtx)
+
+			gtx := app.NewContext(&ops, e)
+			if w.resourcesLoaded.Load() {
+				if !w.searching.Load() {
+					w.handleControls(gtx)
+					w.handleBoard(gtx)
+					w.handleSearch(gtx)
+				}
+				w.layoutWidgets(gtx)
+			} else {
+				w.layoutLoading(gtx)
+				redraw(gtx)
+			}
 			e.Frame(gtx.Ops)
 		}
 	}
@@ -150,27 +159,21 @@ func (w *Window) handleBoard(gtx layout.Context) {
 func (w *Window) handleSearch(gtx layout.Context) {
 	if w.search.button.Clicked(gtx) {
 		maxMoves := w.moves.Selected()
-		if maxMoves > 0 {
-			game := w.board.Game()
-			turn := w.turn.Selected()
-			w.searching.Store(true)
-			w.boardControls.Fade()
-			w.results = make([]puzzle.Data, 0, 1000)
-			redraw(gtx)
-			go func() {
-				for puzzle := range w.index.SearchPuzzles(&game, turn, maxMoves) {
-					w.results = append(w.results, puzzle)
-				}
-				w.boardControls.Brighten()
-				w.searching.Store(false)
-				w.loaded.Store(false)
-			}()
-		}
+		game := w.board.Game()
+		turn := w.turn.Selected()
+		w.searching.Store(true)
+		w.boardControls.Fade()
+		w.results = make([]core.PuzzleData, 0, 1000)
+		redraw(gtx)
+		go func() {
+			for puzzle := range w.index.SearchPuzzles(&game, turn, maxMoves) {
+				w.results = append(w.results, puzzle)
+			}
+			w.boardControls.Brighten()
+			w.searching.Store(false)
+			w.puzzlesLoaded.Store(false)
+		}()
 	}
-}
-
-func (w *Window) handleCancel(gtx layout.Context) {
-
 }
 
 func (w *Window) layoutWidgets(gtx layout.Context) layout.Dimensions {
@@ -189,7 +192,7 @@ func (w *Window) layoutBoardPane(gtx layout.Context) layout.Dimensions {
 		layout.Rigid(Pad(w.padding, w.opening.Layout)),
 		layout.Flexed(1, Pad(w.padding, func(gtx layout.Context) layout.Dimensions {
 			return widget.Border{
-				Color:        util.BlackColor,
+				Color:        BlackColor,
 				CornerRadius: unit.Dp(1),
 				Width:        unit.Dp(1),
 			}.Layout(gtx, w.board.Layout)
@@ -200,16 +203,9 @@ func (w *Window) layoutBoardPane(gtx layout.Context) layout.Dimensions {
 }
 
 func (w *Window) layoutSearchPane(gtx layout.Context) layout.Dimensions {
-	var button *IconButton
-	if w.searching.Load() {
-		button = w.cancel
-	} else {
-		button = w.search
-	}
-
-	if !w.loaded.Load() {
+	if !w.puzzlesLoaded.Load() {
 		w.puzzles.Add(w.results)
-		w.loaded.Store(true)
+		w.puzzlesLoaded.Store(true)
 	}
 
 	return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle, Spacing: layout.SpaceBetween}.Layout(gtx,
@@ -217,8 +213,18 @@ func (w *Window) layoutSearchPane(gtx layout.Context) layout.Dimensions {
 		layout.Rigid(PadSides(w.padding, w.moves.Layout)),
 		layout.Rigid(PadSides(w.padding, w.turn.Layout)),
 		layout.Rigid(Pad(w.padding, func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, layout.Flexed(1, button.Layout))
+			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, layout.Flexed(1, w.search.Layout))
 		})),
+	)
+}
+
+func (w *Window) layoutLoading(gtx layout.Context) layout.Dimensions {
+	return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle, Spacing: layout.SpaceAround}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return material.H3(w.theme, w.loadingStatus).Layout(gtx)
+			})
+		}),
 	)
 }
 

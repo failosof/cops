@@ -8,8 +8,7 @@ import (
 	"os"
 	"runtime/debug"
 
-	"github.com/failosof/cops/game"
-	"github.com/failosof/cops/puzzle"
+	"github.com/failosof/cops/core"
 	"github.com/failosof/cops/util"
 )
 
@@ -34,15 +33,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load games index: %v", err)
 	}
-	defer games.Save(gameIndexFile + ".extended")
+	defer util.SaveBinary(gameIndexFile+".extended", games)
 
 	ctx := context.Background()
 	ExportGames(ctx, puzzles, games, gameIndexFile)
 	slog.Info("Finished exporting games")
 }
 
-func LoadPuzzlesIndex(filename string) (*puzzle.Index, error) {
-	puzzles, err := util.LoadBinary[puzzle.Index](filename)
+func LoadPuzzlesIndex(filename string) (*core.PuzzlesIndex, error) {
+	puzzles, err := util.LoadBinary[core.PuzzlesIndex](filename)
 	if err != nil {
 		slog.Warn("failed to load puzzles index")
 		return nil, err
@@ -51,8 +50,8 @@ func LoadPuzzlesIndex(filename string) (*puzzle.Index, error) {
 	return puzzles, nil
 }
 
-func LoadGamesIndex(filename string) (*game.Index, error) {
-	games, err := util.LoadBinary[game.Index](filename)
+func LoadGamesIndex(filename string) (*core.GamesIndex, error) {
+	games, err := util.LoadBinary[core.GamesIndex](filename)
 	if err != nil {
 		slog.Warn("failed to load games index")
 		return nil, err
@@ -61,41 +60,41 @@ func LoadGamesIndex(filename string) (*game.Index, error) {
 	return games, nil
 }
 
-func ExportGames(ctx context.Context, puzzles *puzzle.Index, games *game.Index, file string) {
+func ExportGames(ctx context.Context, puzzles *core.PuzzlesIndex, games *core.GamesIndex, file string) {
 	total = float32(puzzles.Size())
 	exported := games.Size()
 	slog.Info("Starting games export", "count", int(total)-exported)
 
-	toExport := make([]string, 0, game.MaxExportNumber)
+	toExport := make([]string, 0, MaxExportNumber)
 	var failed int
 	for i, puzzle := range puzzles.Collection {
 		if game := games.Search(puzzle.GameID); game.Empty() {
 			toExport = append(toExport, puzzle.GameID.String())
 		}
 
-		if len(toExport) == game.MaxExportNumber || i == puzzles.Size()-1 {
-			exportedGame, err := game.Export(ctx, toExport)
+		if len(toExport) == MaxExportNumber || i == puzzles.Size()-1 {
+			exportedGame, err := Export(ctx, toExport)
 			if err != nil {
 				slog.Error("failed to export games", "count", len(toExport), "err", err)
 				failed += len(toExport)
 			}
 
 			for _, exportedGame := range exportedGame {
-				exportedGameID := game.IDFromString(exportedGame.GetTagPair("GameId").Value)
+				exportedGameID := core.ParseGameID(exportedGame.GetTagPair("GameId").Value)
 				games.InsertFromChess(exportedGameID, exportedGame)
 			}
 
-			if err := games.Save(file + ".extended"); err != nil {
+			if err := util.SaveBinary(file+".extended", games); err != nil {
 				slog.Error("failed to save games index", "err", err)
 			}
 
 			exported += len(toExport)
-			toExport = make([]string, 0, game.MaxExportNumber)
+			toExport = make([]string, 0, MaxExportNumber)
 		}
 
 		fmt.Printf("\rTotal: %f%%, Exported: %f%%, Failed: %f%%", percent(i), percent(exported), percent(failed))
 	}
-	
+
 	fmt.Println()
 }
 

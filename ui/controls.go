@@ -4,7 +4,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget/material"
-	"github.com/failosof/cops/util"
 )
 
 type BoardControls struct {
@@ -18,10 +17,10 @@ type BoardControls struct {
 func NewBoardControls(th *material.Theme) *BoardControls {
 	return &BoardControls{
 		padding:  unit.Dp(5),
-		reset:    NewIconButton(th, ResetIcon, util.RedColor),
-		backward: NewIconButton(th, BackwardIcon, util.GrayColor),
-		forward:  NewIconButton(th, ForwardIcon, util.GrayColor),
-		flip:     NewIconButton(th, FlipIcon, util.BlueColor),
+		reset:    NewIconButton(th, ResetIcon, RedColor),
+		backward: NewIconButton(th, BackwardIcon, GrayColor),
+		forward:  NewIconButton(th, ForwardIcon, GrayColor),
+		flip:     NewIconButton(th, FlipIcon, BlueColor),
 	}
 }
 

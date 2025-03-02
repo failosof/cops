@@ -23,7 +23,7 @@ type Promotion struct {
 	SquareSize       union.Size
 	Color            chess.Color
 	Background       color.NRGBA
-	Piece            Piece
+	PieceTextures    []Texture
 	HoveredCandidate chess.Piece
 	Flipped          bool
 }
@@ -43,8 +43,8 @@ func (p Promotion) Layout(gtx layout.Context) layout.Dimensions {
 	piecePos := p.Position.Pt
 	pieceEventTargets := make([]event.Filter, len(candidates))
 	for i, piece := range candidates {
-		factor := p.SquareSize.F32.Div(p.Piece.Sizes[piece].Float)
-		util.DrawImage(gtx.Ops, p.Piece.Images[piece], piecePos, factor)
+		factor := p.SquareSize.F32.Div(p.PieceTextures[piece].Size.Float)
+		util.DrawImage(gtx.Ops, p.PieceTextures[piece].Image, piecePos, factor)
 		pieceClip := clip.Rect(image.Rectangle{Min: piecePos, Max: piecePos.Add(factor.Round())}).Push(gtx.Ops)
 		event.Op(gtx.Ops, piece)
 		pieceClip.Pop()

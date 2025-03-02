@@ -1,29 +1,30 @@
-package game
+package core
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/notnil/chess"
 )
 
-type ID [8]uint8
+type GameID [8]uint8
 
-func (id ID) String() string {
+func (id GameID) String() string {
 	return string(id[:])
 }
 
-func IDFromString(str string) (id ID) {
+func ParseGameID(str string) (id GameID) {
 	copy(id[:], str)
 	return
 }
 
 var urlRe = regexp.MustCompile(`lichess\.org/([a-zA-Z0-9]+)`)
 
-func IDFromURL(url string) (id ID) {
+func ParseGameIDFromURL(url string) (id GameID) {
 	matches := urlRe.FindStringSubmatch(url)
 	if len(matches) > 1 {
-		return IDFromString(matches[1])
+		return ParseGameID(matches[1])
 	}
 	return
 }
@@ -98,4 +99,32 @@ func (m Moves) Contain(moves []*chess.Move) bool {
 	}
 
 	return false
+}
+
+type GamesIndex map[GameID]Moves
+
+func (i *GamesIndex) Insert(id, moves string) error {
+	parsedID := ParseGameID(id)
+	parsedMoves, err := ParseMoves(moves)
+	if err != nil {
+		return fmt.Errorf("failed to parse moves: %w", err)
+	}
+	(*i)[parsedID] = parsedMoves
+	return nil
+}
+
+func (i *GamesIndex) InsertFromChess(id GameID, game *chess.Game) {
+	moves := make(Moves, len(game.Moves()))
+	for i, move := range game.Moves() {
+		moves[i] = MovesFromChess(move)
+	}
+	(*i)[id] = moves
+}
+
+func (i *GamesIndex) Search(id GameID) Moves {
+	return (*i)[id]
+}
+
+func (i *GamesIndex) Size() int {
+	return len(*i)
 }

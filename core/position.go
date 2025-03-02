@@ -1,9 +1,8 @@
-package util
+package core
 
 import (
 	"crypto/md5"
 	"fmt"
-	"strconv"
 
 	"github.com/notnil/chess"
 )
@@ -42,44 +41,4 @@ func (p Position) Hash() [16]byte {
 	// square incorrectly, thus requires to
 	// implement this bug prone hash function
 	return md5.Sum([]byte(p.Board().String()))
-}
-
-func MoveNumber(fen []string) (n uint8, err error) {
-	v, err := strconv.ParseUint(fen[5], 10, 8)
-	if err != nil {
-		return 0, fmt.Errorf("invalid move number: %v", err)
-	}
-	n = uint8(v)
-
-	return
-}
-
-func PlayingTurn(fen []string) (c chess.Color, err error) {
-	switch fen[1] {
-	case "w":
-		c = chess.White
-	case "b":
-		c = chess.Black
-	default:
-		err = fmt.Errorf("invalid playing side: %s", fen[1])
-	}
-	return
-}
-
-// todo: remove
-func GameHasMoves(game *chess.Game, moves []*chess.Move) bool {
-	var i, j int
-	gameMoves := game.Moves()
-	for i < len(gameMoves) && j < len(moves) {
-		sameMove := *gameMoves[i] == *moves[j]
-		if j > 0 && !sameMove {
-			return false
-		}
-		if sameMove {
-			j++
-		}
-		i++
-	}
-
-	return j == len(moves)
 }

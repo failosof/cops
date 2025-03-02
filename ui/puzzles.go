@@ -7,8 +7,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-	"github.com/failosof/cops/puzzle"
-	"github.com/failosof/cops/util"
+	"github.com/failosof/cops/core"
 )
 
 type PuzzleList struct {
@@ -25,7 +24,7 @@ func NewPuzzleList(th *material.Theme) *PuzzleList {
 		editor: editor,
 		style:  material.Editor(th, editor, "Lichess Puzzle URLs"),
 		border: widget.Border{
-			Color:        util.BlackColor,
+			Color:        BlackColor,
 			CornerRadius: unit.Dp(1),
 			Width:        unit.Dp(1),
 		},
@@ -40,7 +39,7 @@ func (l *PuzzleList) Clear() {
 	l.editor.SetText("")
 }
 
-func (l *PuzzleList) Add(puzzles []puzzle.Data) {
+func (l *PuzzleList) Add(puzzles []core.PuzzleData) {
 	var list strings.Builder
 	for _, puzzle := range puzzles {
 		list.WriteString(puzzle.URL())

@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/failosof/cops/game"
+	"github.com/failosof/cops/core"
 	"github.com/failosof/cops/util"
 	"github.com/goccy/go-json"
 	"golang.org/x/exp/mmap"
@@ -64,11 +64,11 @@ func main() {
 }
 
 type fileResult struct {
-	index game.Index
+	index core.GamesIndex
 	err   error
 }
 
-func createIndex(filenames []string) (game.Index, error) {
+func createIndex(filenames []string) (core.GamesIndex, error) {
 	resChan := make(chan fileResult, len(filenames))
 	defer close(resChan)
 
@@ -79,7 +79,7 @@ func createIndex(filenames []string) (game.Index, error) {
 		}(filename)
 	}
 
-	index := make(game.Index, AssumedGameCount)
+	index := make(core.GamesIndex, AssumedGameCount)
 	workers := len(filenames)
 loop:
 	for {
@@ -103,15 +103,15 @@ loop:
 	return index, nil
 }
 
-func processFile(filename string) (game.Index, error) {
+func processFile(filename string) (core.GamesIndex, error) {
 	file, err := mmap.Open(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file %q: %w", filename, err)
 	}
 	defer file.Close()
 
-	index := make(game.Index, FileRecords)
-	
+	index := make(core.GamesIndex, FileRecords)
+
 	sr := io.NewSectionReader(file, 0, int64(file.Len()))
 	decoder := json.NewDecoder(sr)
 	for {

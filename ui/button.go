@@ -7,7 +7,6 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-	"github.com/failosof/cops/util"
 	"golang.org/x/exp/shiny/materialdesign/icons"
 )
 
@@ -46,7 +45,7 @@ func (b *IconButton) Layout(gtx layout.Context) layout.Dimensions {
 	return b.style.Layout(gtx, Pad(unit.Dp(5), func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return b.icon.Layout(gtx, util.WhiteColor)
+				return b.icon.Layout(gtx, WhiteColor)
 			}),
 		)
 	}))
@@ -57,5 +56,5 @@ func (b *IconButton) Brighten() {
 }
 
 func (b *IconButton) Fade() {
-	b.style.Background = util.Transparentize(b.color, 0.7)
+	b.style.Background = Transparentize(b.color, 0.7)
 }

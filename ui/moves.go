@@ -8,7 +8,6 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-	"github.com/failosof/cops/util"
 )
 
 type MovesCountSelector struct {
@@ -22,7 +21,7 @@ type MovesCountSelector struct {
 func NewMovesNumberSelector(th *material.Theme, min, max uint8) *MovesCountSelector {
 	float := new(widget.Float)
 	slider := material.Slider(th, float)
-	slider.Color = util.GrayColor
+	slider.Color = GrayColor
 	return &MovesCountSelector{
 		min:     min,
 		max:     max,
@@ -51,8 +50,10 @@ func (s *MovesCountSelector) Selected() (res uint8) {
 }
 
 func (s *MovesCountSelector) Set(moves uint8) {
-	util.Assert(1 <= moves && moves <= 40, "moves number must be in [1, 40]")
-
-	percent := float32(moves) / float32(s.max-s.min)
-	s.slider.Float.Value = percent
+	if 1 <= moves && moves <= 40 {
+		percent := float32(moves) / float32(s.max-s.min)
+		s.slider.Float.Value = percent
+	} else {
+		s.slider.Float.Value = 0
+	}
 }

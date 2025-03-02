@@ -5,13 +5,12 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-	"github.com/failosof/cops/opening"
-	"github.com/failosof/cops/util"
+	"github.com/failosof/cops/core"
 )
 
 type OpeningName struct {
 	padding         unit.Dp
-	name            opening.Name
+	name            core.OpeningName
 	border          *widget.Border
 	familyEditor    *widget.Editor
 	variationEditor *widget.Editor
@@ -32,7 +31,7 @@ func NewOpeningName(th *material.Theme) *OpeningName {
 	return &OpeningName{
 		padding: unit.Dp(7),
 		border: &widget.Border{
-			Color:        util.BlackColor,
+			Color:        BlackColor,
 			CornerRadius: unit.Dp(1),
 			Width:        unit.Dp(1),
 		},
@@ -55,7 +54,7 @@ func (w *OpeningName) Layout(gtx layout.Context) layout.Dimensions {
 	)
 }
 
-func (w *OpeningName) Set(name opening.Name) {
+func (w *OpeningName) Set(name core.OpeningName) {
 	w.name = name
 	w.familyEditor.SetText(name.Family())
 	w.variationEditor.SetText(name.Variation())

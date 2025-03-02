@@ -11,7 +11,6 @@ require (
 	golang.org/x/exp v0.0.0-20250215185904-eff6e970281f
 	golang.org/x/exp/shiny v0.0.0-20250218142911-aa4b98e5adaa
 	golang.org/x/text v0.22.0
-	golang.org/x/time v0.10.0
 )
 
 require (
