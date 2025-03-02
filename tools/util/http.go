@@ -1,8 +1,9 @@
-package main
+package util
 
 import (
 	"context"
 	"fmt"
+
 	"io"
 	"net/http"
 	"os"

@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/failosof/cops/core"
-	"github.com/failosof/cops/util"
+	"github.com/failosof/cops/tools/util"
 	"github.com/goccy/go-json"
 	"golang.org/x/exp/mmap"
 )
@@ -49,7 +49,7 @@ func main() {
 	filenames := os.Args[1:]
 
 	log.Printf("Indexing games from %s ...", strings.Join(filenames, ", "))
-	index, err := createIndex(filenames)
+	index, err := CreateGamesIndex(filenames)
 	if err != nil {
 		log.Fatalf("Failed to create games index: %v", err)
 	}
@@ -68,7 +68,7 @@ type fileResult struct {
 	err   error
 }
 
-func createIndex(filenames []string) (core.GamesIndex, error) {
+func CreateGamesIndex(filenames []string) (core.GamesIndex, error) {
 	resChan := make(chan fileResult, len(filenames))
 	defer close(resChan)
 

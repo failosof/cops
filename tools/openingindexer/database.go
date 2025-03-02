@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/failosof/cops/tools/util"
 )
 
 const DatabaseURL = "https://raw.githubusercontent.com/lichess-org/chess-openings/refs/heads/master/"
@@ -49,7 +51,7 @@ func DownloadDatabase(ctx context.Context, dir string) ([]string, error) {
 		wg.Add(1)
 		go func(from, to string) {
 			defer wg.Done()
-			if err := Download(ctx, url, files[i]); err != nil {
+			if err := util.Download(ctx, url, files[i]); err != nil {
 				errsCh <- fmt.Errorf("failed to download openings db: %w", err)
 			}
 		}(files[i], url)

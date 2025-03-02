@@ -14,23 +14,25 @@ var Indexes embed.FS
 //go:embed assets
 var Assets embed.FS
 
-func LoadIndex[T any](filename string) (*T, error) {
+func LoadIndex[I any](filename string) (i I, err error) {
 	file, err := Indexes.Open(filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open index file %s: %w", filename, err)
+		err = fmt.Errorf("failed to open index file %s: %w", filename, err)
+		return
 	}
 	defer file.Close()
 
 	decoder, err := zstd.NewReader(file)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create zst decoder for %s: %w", filename, err)
+		err = fmt.Errorf("failed to create zst decoder for %s: %w", filename, err)
+		return
 	}
 	defer decoder.Close()
 
-	var t T
-	if err := gob.NewDecoder(decoder).Decode(&t); err != nil {
-		return nil, fmt.Errorf("failed to read binary file %s: %w", err)
+	if err = gob.NewDecoder(decoder).Decode(&i); err != nil {
+		err = fmt.Errorf("failed to read binary file %s: %w", err)
+		return
 	}
 
-	return &t, nil
+	return
 }

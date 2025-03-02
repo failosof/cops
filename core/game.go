@@ -103,28 +103,20 @@ func (m Moves) Contain(moves []*chess.Move) bool {
 
 type GamesIndex map[GameID]Moves
 
-func (i *GamesIndex) Insert(id, moves string) error {
+func (i GamesIndex) Insert(id, moves string) error {
 	parsedID := ParseGameID(id)
 	parsedMoves, err := ParseMoves(moves)
 	if err != nil {
 		return fmt.Errorf("failed to parse moves: %w", err)
 	}
-	(*i)[parsedID] = parsedMoves
+	i[parsedID] = parsedMoves
 	return nil
 }
 
-func (i *GamesIndex) InsertFromChess(id GameID, game *chess.Game) {
+func (i GamesIndex) InsertFromChess(id GameID, game *chess.Game) {
 	moves := make(Moves, len(game.Moves()))
 	for i, move := range game.Moves() {
 		moves[i] = MovesFromChess(move)
 	}
-	(*i)[id] = moves
-}
-
-func (i *GamesIndex) Search(id GameID) Moves {
-	return (*i)[id]
-}
-
-func (i *GamesIndex) Size() int {
-	return len(*i)
+	i[id] = moves
 }

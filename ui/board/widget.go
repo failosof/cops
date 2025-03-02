@@ -22,6 +22,8 @@ import (
 	"github.com/notnil/chess"
 )
 
+// todo: fix captures on the board
+// todo: move out board state update
 // todo: add inside coordinates
 // todo: add each square coordinates
 // todo: add pawn promotion

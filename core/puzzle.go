@@ -71,31 +71,25 @@ func (d *PuzzleData) GobDecode(data []byte) (err error) {
 	return
 }
 
-type PuzzlesIndex struct {
-	Collection   []PuzzleData
-	ByOpeningTag map[string][]int
-}
+type PuzzlesIndex map[string][]PuzzleData
 
-func (i *PuzzlesIndex) Insert(puzzleID, fen, gameURL, openingTags string) error {
+func (i PuzzlesIndex) Insert(puzzleID, fen, gameURL, openingTags string) error {
 	puzzle, err := NewPuzzleData(puzzleID, gameURL, fen)
 	if err != nil {
 		return fmt.Errorf("failed to parse puzzle: %w", err)
 	}
 
-	id := len(i.Collection)
-	i.Collection = append(i.Collection, puzzle)
 	tags := strings.Split(openingTags, " ")
 	for _, tag := range tags {
-		i.ByOpeningTag[tag] = append(i.ByOpeningTag[tag], id)
+		i[tag] = append(i[tag], puzzle)
 	}
 
 	return nil
 }
 
-func (i *PuzzlesIndex) Search(openingTag string, side chess.Color, maxMoves uint8) iter.Seq[PuzzleData] {
+func (i PuzzlesIndex) Search(openingTag string, side chess.Color, maxMoves uint8) iter.Seq[PuzzleData] {
 	return func(yield func(PuzzleData) bool) {
-		for _, id := range i.ByOpeningTag[openingTag] {
-			puzzle := i.Collection[id]
+		for _, puzzle := range i[openingTag] {
 			if side == chess.NoColor || puzzle.Turn == side {
 				if puzzle.Move <= maxMoves {
 					if !yield(puzzle) {
@@ -106,65 +100,6 @@ func (i *PuzzlesIndex) Search(openingTag string, side chess.Color, maxMoves uint
 		}
 	}
 }
-
-func (i *PuzzlesIndex) Size() int {
-	return len(i.Collection)
-}
-
-//
-//const AssumedPuzzleCount = 1_500_000 // puzzle db is ~4.5m records, only ~1m are from openings
-//
-//func CreateIndex(from string) (*GamesIndex, error) {
-//	index := GamesIndex{
-//		Collection:   make([]Data, 0, AssumedPuzzleCount),
-//		ByOpeningTag: make(map[string][]int, AssumedPuzzleCount),
-//	}
-//
-//	filename := from
-//	file, err := os.Open(filename)
-//	if err != nil {
-//		return nil, fmt.Errorf("failed to open file %q: %w", filename, err)
-//	}
-//	defer file.Close()
-//
-//	decoder, err := zstd.NewReader(file)
-//	if err != nil {
-//		return nil, fmt.Errorf("failed to create zst decoder for %q: %w", filename, err)
-//	}
-//	defer decoder.Close()
-//
-//	reader := csv.NewReader(decoder)
-//	reader.ReuseRecord = true
-//
-//	var indexed, processed int
-//	for i := 0; ; i++ {
-//		lineNum := i + 1
-//		line, err := reader.Read()
-//		if err != nil {
-//			if !errors.Is(err, io.EOF) {
-//				return nil, fmt.Errorf("failed to read file %q line %d: %w", filename, lineNum, err)
-//			}
-//			break
-//		}
-//
-//		if lineNum > 1 { // skip the header
-//			if len(line) != 10 {
-//				return nil, fmt.Errorf("file %q line %d: want 10 fields, have %d", filename, lineNum, len(line))
-//			}
-//
-//			if len(line[9]) > 0 {
-//				if err := index.Insert(line[0], line[1], line[8], line[9]); err != nil {
-//					return nil, fmt.Errorf("file %q line %d: %w", filename, lineNum, err)
-//				}
-//				indexed++
-//			}
-//			processed++
-//		}
-//	}
-//	slog.Debug("created puzzles index", "from", from, "processed", processed, "indexed", indexed)
-//
-//	return &index, nil
-//}
 
 func MoveNumber(fen []string) (n uint8, err error) {
 	v, err := strconv.ParseUint(fen[5], 10, 8)

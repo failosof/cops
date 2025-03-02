@@ -18,7 +18,7 @@ const (
 	ExportGamesURL  = "https://lichess.org/games/export/_ids"
 )
 
-func Export(ctx context.Context, ids []string) ([]*chess.Game, error) {
+func ExportFromLichess(ctx context.Context, ids []string) ([]*chess.Game, error) {
 	body := strings.NewReader(strings.Join(ids, ","))
 	req, err := http.NewRequest(http.MethodPost, ExportGamesURL, body)
 	if err != nil {
@@ -43,22 +43,28 @@ func Export(ctx context.Context, ids []string) ([]*chess.Game, error) {
 	}
 
 	pgns := bytes.Split(data.Bytes(), []byte("\n\n\n"))
-	games := make([]*chess.Game, len(ids))
+	games := make([]*chess.Game, 0, len(ids))
 
-	for i, pgn := range pgns {
+	for _, pgn := range pgns {
 		if len(pgn) > 0 {
 			opt, err := chess.PGN(bytes.NewReader(pgn))
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse pgn: %w", err)
 			}
-			games[i] = chess.NewGame(opt)
+			games = append(games, chess.NewGame(opt))
 		}
 	}
 
 	return games, nil
 }
 
-var limiter = rate.NewLimiter(rate.Every(3*time.Second), 1)
+var limit = 3 * time.Second
+var limiter = rate.NewLimiter(rate.Every(limit), 1)
+
+func incLimit() {
+	limit += time.Second
+	limiter.SetLimit(rate.Every(limit))
+}
 
 func perform(ctx context.Context, req *http.Request) (*http.Response, error) {
 	for i := 0; i < 3; i++ {
@@ -76,7 +82,6 @@ func perform(ctx context.Context, req *http.Request) (*http.Response, error) {
 		if resp.StatusCode != http.StatusTooManyRequests {
 			return resp, nil
 		}
-		slog.Warn("lichess rate limit hit")
 
 		time.Sleep(time.Minute)
 	}

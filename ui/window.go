@@ -16,6 +16,8 @@ import (
 	"github.com/failosof/cops/ui/board"
 )
 
+// todo: puzzle search pagination
+
 const PageSize = 25 // puzzles on one page
 
 type Window struct {
@@ -229,7 +231,5 @@ func (w *Window) layoutLoading(gtx layout.Context) layout.Dimensions {
 }
 
 func redraw(gtx layout.Context) {
-	gtx.Execute(op.InvalidateCmd{
-		//At: gtx.Now.Add(time.Second / 25),
-	})
+	gtx.Execute(op.InvalidateCmd{})
 }
