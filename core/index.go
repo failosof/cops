@@ -72,14 +72,15 @@ func (s *Index) SearchPuzzles(chessGame *chess.Game, turn chess.Color, maxMoves 
 
 	// calculate offset from search position
 	maxMoves += uint8(len(chessGame.Moves()) / 2)
+	position := chessGame.Position()
 
 	return func(yield func(PuzzleData) bool) {
 		start := time.Now()
 
 		var found, skip int
 		for foundPuzzle := range s.Puzzles.Search(opening.Tag(), turn, maxMoves) {
-			if foundMoves, ok := s.Games[foundPuzzle.GameID]; ok {
-				if foundMoves.Contain(moves) {
+			if game, ok := s.Games[foundPuzzle.GameID]; ok {
+				if game.ContainPosition(position) {
 					found++
 					if !yield(foundPuzzle) {
 						break

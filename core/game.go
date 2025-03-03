@@ -36,6 +36,14 @@ type Move struct {
 	Tags  chess.MoveTag
 }
 
+func (m Move) String() string {
+	var str strings.Builder
+	str.WriteString(m.From.String())
+	str.WriteString(m.To.String())
+	str.WriteString(m.Promo.String())
+	return str.String()
+}
+
 type Moves []Move
 
 func (m Moves) Empty() bool {
@@ -81,11 +89,12 @@ func ParseMoves(moves string) (m Moves, err error) {
 	return
 }
 
-func (m Moves) Contain(moves []*chess.Move) bool {
+func (m Moves) ContainMoves(moves []*chess.Move) bool {
 	if len(moves) == 0 {
 		return true
 	}
 
+	// todo: check move number
 	var j int
 	for i := range m {
 		if m[i] == MovesFromChess(moves[j]) {
@@ -99,6 +108,21 @@ func (m Moves) Contain(moves []*chess.Move) bool {
 	}
 
 	return false
+}
+
+func (m Moves) ContainPosition(pos *chess.Position) bool {
+	if pos == nil {
+		return true
+	}
+
+	game := chess.NewGame(chess.UseNotation(chess.UCINotation{}))
+	for _, move := range m {
+		if err := game.MoveStr(move.String()); err != nil {
+			return false
+		}
+	}
+
+	return game.Position().Hash() == pos.Hash()
 }
 
 type GamesIndex map[GameID]Moves
