@@ -11,6 +11,58 @@ import (
 	"github.com/notnil/chess"
 )
 
+type SearchType int8
+
+const (
+	MoveSequenceSearch SearchType = iota
+	PositionSearch
+)
+
+func (t SearchType) String() string {
+	switch t {
+	case MoveSequenceSearch:
+		return "By moves"
+	case PositionSearch:
+		return "By position"
+	default:
+		panic("unreachable")
+	}
+}
+
+type Turn int8
+
+const (
+	EitherTurn Turn = iota
+	WhiteTurn
+	BlackTurn
+)
+
+func (t Turn) String() string {
+	switch t {
+	case WhiteTurn:
+		return "White"
+	case BlackTurn:
+		return "Black"
+	case EitherTurn:
+		fallthrough
+	default:
+		return "Either"
+	}
+}
+
+func (t Turn) ToChess() chess.Color {
+	switch t {
+	case WhiteTurn:
+		return chess.White
+	case BlackTurn:
+		return chess.Black
+	case EitherTurn:
+		fallthrough
+	default:
+		return chess.NoColor
+	}
+}
+
 type Index struct {
 	Openings OpeningsIndex
 	Games    GamesIndex
@@ -62,34 +114,37 @@ func (s *Index) SearchOpening(game *chess.Game) (found OpeningName, leftover []*
 	return
 }
 
-func (s *Index) SearchPuzzles(chessGame *chess.Game, turn chess.Color, maxMoves uint8) []PuzzleData {
+type finding struct {
+	puzzle PuzzleData
+	game   Game
+}
+
+func (s *Index) SearchPuzzles(
+	chessGame *chess.Game,
+	strategy SearchType,
+	turn chess.Color,
+	maxMoves uint8,
+) []PuzzleData {
 	opening, moves := s.SearchOpening(chessGame)
 	if opening.Empty() {
 		return nil
 	}
 
-	type finding struct {
-		puzzle PuzzleData
-		game   Game
+	// fast path
+	if len(moves) == 0 {
+		results := make([]PuzzleData, 0, 1000)
+		for puzzle := range s.Puzzles.Filter(opening.Tag(), turn, maxMoves) {
+			if _, ok := s.Games[puzzle.GameID]; ok {
+				results = append(results, puzzle)
+			}
+		}
+		return results
 	}
 
-	threads := runtime.NumCPU()
-	position := chessGame.Position()
+	// slow path
+	var wg sync.WaitGroup
 	findingsCh := make(chan finding)
 	puzzlesCh := make(chan PuzzleData)
-	var wg sync.WaitGroup
-	for i := 0; i < threads; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for found := range findingsCh {
-				if len(moves) == 0 || found.game.ContainsPosition(position) {
-					puzzlesCh <- found.puzzle
-				}
-			}
-		}()
-	}
-
 	go func() {
 		halfMoveNum := len(chessGame.Moves())
 		maxMoves += uint8(halfMoveNum / 2) // offset from search position
@@ -108,10 +163,30 @@ func (s *Index) SearchPuzzles(chessGame *chess.Game, turn chess.Color, maxMoves 
 		close(puzzlesCh)
 	}()
 
+	position := chessGame.Position()
+	threads := runtime.NumCPU()
+	for i := 0; i < threads; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for found := range findingsCh {
+				var matches bool
+				switch strategy {
+				case MoveSequenceSearch:
+					matches = found.game.ContainsMoves(moves)
+				case PositionSearch:
+					matches = found.game.ContainsPosition(position)
+				}
+				if matches {
+					puzzlesCh <- found.puzzle
+				}
+			}
+		}()
+	}
+
 	results := make([]PuzzleData, 0, 1000)
 	for puzzle := range puzzlesCh {
 		results = append(results, puzzle)
 	}
-
 	return results
 }

@@ -2,69 +2,79 @@ package ui
 
 import (
 	"fmt"
-	"image/color"
-	"math"
-	"strings"
-
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"github.com/failosof/cops/core"
-	"github.com/notnil/chess"
 	"golang.org/x/exp/shiny/materialdesign/icons"
+	"image/color"
+	"math"
+	"strconv"
 )
 
-type OpeningName struct {
-	padding         unit.Dp
-	name            core.OpeningName
-	border          *widget.Border
-	familyEditor    *widget.Editor
-	variationEditor *widget.Editor
-	familyStyle     material.EditorStyle
-	variationStyle  material.EditorStyle
+type TextFieldOption int8
+
+const (
+	ReadOnly TextFieldOption = 1 << iota
+	SingleLine
+)
+
+type TextField struct {
+	padding unit.Dp
+	border  *widget.Border
+	editor  *widget.Editor
+	style   material.EditorStyle
 }
 
-func NewOpeningName(th *material.Theme) *OpeningName {
-	familyEditor := widget.Editor{
-		SingleLine: true,
-		ReadOnly:   true,
+func NewTextField(th *material.Theme, hint string, options TextFieldOption) *TextField {
+	editor := widget.Editor{
+		ReadOnly:   options&ReadOnly != 0,
+		SingleLine: options&SingleLine != 0,
 	}
-	variationEditor := widget.Editor{
-		SingleLine: true,
-		ReadOnly:   true,
-	}
-
-	return &OpeningName{
+	return &TextField{
 		padding: unit.Dp(7),
 		border: &widget.Border{
 			Color:        BlackColor,
 			CornerRadius: unit.Dp(1),
 			Width:        unit.Dp(1),
 		},
-		familyEditor:    &familyEditor,
-		variationEditor: &variationEditor,
-		familyStyle:     material.Editor(th, &familyEditor, "Family"),
-		variationStyle:  material.Editor(th, &variationEditor, "Variation"),
+		editor: &editor,
+		style:  material.Editor(th, &editor, hint),
+	}
+}
+
+func (w *TextField) SetText(text string) {
+	w.editor.SetText(text)
+}
+
+func (w *TextField) Layout(gtx layout.Context) layout.Dimensions {
+	return w.border.Layout(gtx, Pad(w.padding, w.style.Layout))
+}
+
+type OpeningName struct {
+	family    *TextField
+	variation *TextField
+}
+
+func NewOpeningName(th *material.Theme) *OpeningName {
+	return &OpeningName{
+		family:    NewTextField(th, "Family", ReadOnly|SingleLine),
+		variation: NewTextField(th, "Variation", ReadOnly|SingleLine),
 	}
 }
 
 func (w *OpeningName) Layout(gtx layout.Context) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceEnd}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return w.border.Layout(gtx, Pad(w.padding, w.familyStyle.Layout))
-		}),
+		layout.Rigid(w.family.Layout),
 		layout.Rigid(layout.Spacer{Height: unit.Dp(3)}.Layout),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return w.border.Layout(gtx, Pad(w.padding, w.variationStyle.Layout))
-		}),
+		layout.Rigid(w.variation.Layout),
 	)
 }
 
 func (w *OpeningName) Set(name core.OpeningName) {
-	w.name = name
-	w.familyEditor.SetText(name.Family())
-	w.variationEditor.SetText(name.Variation())
+	w.family.SetText(name.Family())
+	w.variation.SetText(name.Variation())
 }
 
 type Icon []byte
@@ -158,45 +168,7 @@ func (c *BoardControls) ShouldFlip(gtx layout.Context) bool {
 	return c.flip.button.Clicked(gtx)
 }
 
-type PuzzleList struct {
-	editor *widget.Editor
-	style  material.EditorStyle
-	border widget.Border
-}
-
-func NewPuzzleList(th *material.Theme) *PuzzleList {
-	editor := &widget.Editor{
-		ReadOnly: true,
-	}
-	return &PuzzleList{
-		editor: editor,
-		style:  material.Editor(th, editor, "Lichess Puzzle URLs"),
-		border: widget.Border{
-			Color:        BlackColor,
-			CornerRadius: unit.Dp(1),
-			Width:        unit.Dp(1),
-		},
-	}
-}
-
-func (l *PuzzleList) Layout(gtx layout.Context) layout.Dimensions {
-	return l.border.Layout(gtx, Pad(unit.Dp(7), l.style.Layout))
-}
-
-func (l *PuzzleList) Clear() {
-	l.editor.SetText("")
-}
-
-func (l *PuzzleList) Add(puzzles []core.PuzzleData) {
-	var list strings.Builder
-	for _, puzzle := range puzzles {
-		list.WriteString(puzzle.URL())
-		list.WriteRune('\n')
-	}
-	l.editor.SetText(list.String())
-}
-
-type MovesCountSelector struct {
+type RangeSlider struct {
 	min, max uint8
 	padding  unit.Dp
 	slider   material.SliderStyle
@@ -204,21 +176,21 @@ type MovesCountSelector struct {
 	count    material.LabelStyle
 }
 
-func NewMovesNumberSelector(th *material.Theme, min, max uint8) *MovesCountSelector {
+func NewRangeSlider(th *material.Theme, hint string, min, max uint8) *RangeSlider {
 	float := new(widget.Float)
 	slider := material.Slider(th, float)
 	slider.Color = GrayColor
-	return &MovesCountSelector{
+	return &RangeSlider{
 		min:     min,
 		max:     max,
 		padding: unit.Dp(8),
 		slider:  slider,
-		hint:    material.Body1(th, "Moves"),
+		hint:    material.Body1(th, hint),
 		count:   material.Body1(th, "1"),
 	}
 }
 
-func (s *MovesCountSelector) Layout(gtx layout.Context) layout.Dimensions {
+func (s *RangeSlider) Layout(gtx layout.Context) layout.Dimensions {
 	s.count.Text = fmt.Sprint(s.Selected())
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(Pad(s.padding, s.hint.Layout)),
@@ -227,7 +199,7 @@ func (s *MovesCountSelector) Layout(gtx layout.Context) layout.Dimensions {
 	)
 }
 
-func (s *MovesCountSelector) Selected() (res uint8) {
+func (s *RangeSlider) Selected() (res uint8) {
 	percent := s.slider.Float.Value
 	from := float32(s.max - s.min + 1)
 	count := from * percent
@@ -235,48 +207,48 @@ func (s *MovesCountSelector) Selected() (res uint8) {
 	return
 }
 
-func (s *MovesCountSelector) Set(moves uint8) {
-	if 1 <= moves && moves <= 40 {
-		percent := float32(moves) / float32(s.max-s.min)
+func (s *RangeSlider) Set(value uint8) {
+	if s.min <= value && value <= s.max {
+		percent := float32(value) / float32(s.max-s.min)
 		s.slider.Float.Value = percent
 	} else {
 		s.slider.Float.Value = 0
 	}
 }
 
-type TurnSelector struct {
-	group  *widget.Enum
-	white  material.RadioButtonStyle
-	black  material.RadioButtonStyle
-	either material.RadioButtonStyle
+type OptionSelector[Option fmt.Stringer] struct {
+	group   *widget.Enum
+	options []Option
+	styles  []material.RadioButtonStyle
+	layouts []layout.FlexChild
 }
 
-func NewTurnSelector(th *material.Theme) *TurnSelector {
+func NewOptionSelector[Option fmt.Stringer](th *material.Theme, options []Option) *OptionSelector[Option] {
 	group := new(widget.Enum)
-	group.Value = "e"
-	return &TurnSelector{
-		group:  group,
-		white:  material.RadioButton(th, group, "w", "White"),
-		black:  material.RadioButton(th, group, "b", "Black"),
-		either: material.RadioButton(th, group, "e", "Either"),
+	group.Value = "0"
+	styles := make([]material.RadioButtonStyle, len(options))
+	layouts := make([]layout.FlexChild, len(options))
+	for i, option := range options {
+		styles[i] = material.RadioButton(th, group, strconv.Itoa(i), option.String())
+		layouts[i] = layout.Flexed(1, styles[i].Layout)
+	}
+	return &OptionSelector[Option]{
+		group:   group,
+		options: options,
+		styles:  styles,
+		layouts: layouts,
 	}
 }
 
-func (s *TurnSelector) Layout(gtx layout.Context) layout.Dimensions {
-	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-		layout.Rigid(layout.Spacer{Width: unit.Dp(15)}.Layout),
-		layout.Flexed(1, s.white.Layout),
-		layout.Flexed(1, s.black.Layout),
-		layout.Flexed(1, s.either.Layout),
-	)
+func (w *OptionSelector[Option]) Layout(gtx layout.Context) layout.Dimensions {
+	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, w.layouts...)
 }
 
-func (s *TurnSelector) Selected() (t chess.Color) {
-	switch s.group.Value {
-	case "w":
-		t = chess.White
-	case "b":
-		t = chess.Black
+func (w *OptionSelector[Option]) Selected() (o Option) {
+	if i, err := strconv.Atoi(w.group.Value); err == nil {
+		if 0 <= i && i < len(w.options) {
+			o = w.options[i]
+		}
 	}
 	return
 }
