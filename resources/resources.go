@@ -4,11 +4,9 @@ import (
 	"embed"
 	"encoding/gob"
 	"fmt"
-
-	"github.com/klauspost/compress/zstd"
 )
 
-//go:embed indexes
+//go:embed indexes/*.index
 var Indexes embed.FS
 
 //go:embed assets
@@ -22,14 +20,7 @@ func LoadIndex[I any](filename string) (i I, err error) {
 	}
 	defer file.Close()
 
-	decoder, err := zstd.NewReader(file)
-	if err != nil {
-		err = fmt.Errorf("failed to create zst decoder for %s: %w", filename, err)
-		return
-	}
-	defer decoder.Close()
-
-	if err = gob.NewDecoder(decoder).Decode(&i); err != nil {
+	if err = gob.NewDecoder(file).Decode(&i); err != nil {
 		err = fmt.Errorf("failed to read binary file %s: %w", err)
 		return
 	}

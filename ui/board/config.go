@@ -3,6 +3,7 @@ package chessboard
 import (
 	"image"
 	"image/color"
+	"image/draw"
 	_ "image/png"
 	"io"
 	"time"
@@ -31,15 +32,17 @@ type Colors struct {
 }
 
 type Texture struct {
-	Image image.Image
+	Image *image.NRGBA
 	Size  union.Size
 }
 
 func LoadTexture(file io.Reader) (t Texture, err error) {
-	t.Image, _, err = image.Decode(file)
+	src, _, err := image.Decode(file)
 	if err != nil {
 		return
 	}
+	t.Image = image.NewNRGBA(image.Rect(0, 0, src.Bounds().Dx(), src.Bounds().Dy()))
+	draw.Draw(t.Image, t.Image.Bounds(), src, src.Bounds().Min, draw.Src)
 	t.Size = union.SizeFromMinPt(t.Image.Bounds().Max)
 	return
 }

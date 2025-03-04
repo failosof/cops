@@ -1,9 +1,10 @@
 package core
 
 import (
-	"iter"
 	"log/slog"
 	"path/filepath"
+	"runtime"
+	"sync"
 	"time"
 
 	"github.com/failosof/cops/resources"
@@ -50,49 +51,67 @@ func LoadIndex() (*Index, error) {
 
 func (s *Index) SearchOpening(game *chess.Game) (found OpeningName, leftover []*chess.Move) {
 	positions := game.Positions()
-	for i := 1; i < len(positions); i++ {
+	for i := len(positions) - 1; i > 0; i-- {
 		pos := PositionFromChess(positions[i]).Hash()
 		if name, ok := s.Openings[pos]; ok {
 			found = name
-		} else {
-			leftover = game.Moves()[i-1:]
-			break
+			leftover = game.Moves()[i:]
+			return
 		}
 	}
 	return
 }
 
-func (s *Index) SearchPuzzles(chessGame *chess.Game, turn chess.Color, maxMoves uint8) iter.Seq[PuzzleData] {
+func (s *Index) SearchPuzzles(chessGame *chess.Game, turn chess.Color, maxMoves uint8) []PuzzleData {
 	opening, moves := s.SearchOpening(chessGame)
 	if opening.Empty() {
-		return func(yield func(PuzzleData) bool) {
-			return
-		}
+		return nil
 	}
 
-	// calculate offset from search position
-	maxMoves += uint8(len(chessGame.Moves()) / 2)
+	type finding struct {
+		puzzle PuzzleData
+		game   Game
+	}
+
+	threads := runtime.NumCPU()
 	position := chessGame.Position()
-
-	return func(yield func(PuzzleData) bool) {
-		start := time.Now()
-
-		var found, skip int
-		for foundPuzzle := range s.Puzzles.Search(opening.Tag(), turn, maxMoves) {
-			if game, ok := s.Games[foundPuzzle.GameID]; ok {
-				if game.ContainPosition(position) {
-					found++
-					if !yield(foundPuzzle) {
-						break
-					}
+	findingsCh := make(chan finding)
+	puzzlesCh := make(chan PuzzleData)
+	var wg sync.WaitGroup
+	for i := 0; i < threads; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for found := range findingsCh {
+				if len(moves) == 0 || found.game.ContainsPosition(position) {
+					puzzlesCh <- found.puzzle
 				}
-			} else {
-				skip++
-				slog.Warn("puzzle game not indexed", "puzzle", foundPuzzle.ID, "game", foundPuzzle.GameID)
+			}
+		}()
+	}
+
+	go func() {
+		halfMoveNum := len(chessGame.Moves())
+		maxMoves += uint8(halfMoveNum / 2) // offset from search position
+
+		for puzzle := range s.Puzzles.Filter(opening.Tag(), turn, maxMoves) {
+			if game, ok := s.Games[puzzle.GameID]; ok {
+				findingsCh <- finding{
+					puzzle: puzzle,
+					game:   game,
+				}
 			}
 		}
 
-		took := time.Since(start)
-		slog.Info("puzzle search", "opening", opening, "moves", moves, "found", found, "skip", skip, "took", took)
+		close(findingsCh)
+		wg.Wait()
+		close(puzzlesCh)
+	}()
+
+	results := make([]PuzzleData, 0, 1000)
+	for puzzle := range puzzlesCh {
+		results = append(results, puzzle)
 	}
+
+	return results
 }

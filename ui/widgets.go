@@ -98,6 +98,11 @@ func NewIconButton(th *material.Theme, name Icon, color color.NRGBA) *IconButton
 }
 
 func (b *IconButton) Layout(gtx layout.Context) layout.Dimensions {
+	if gtx.Enabled() {
+		b.style.Background = b.color
+	} else {
+		b.style.Background = Disabled(b.color)
+	}
 	return b.style.Layout(gtx, Pad(unit.Dp(5), func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -105,14 +110,6 @@ func (b *IconButton) Layout(gtx layout.Context) layout.Dimensions {
 			}),
 		)
 	}))
-}
-
-func (b *IconButton) Brighten() {
-	b.style.Background = b.color
-}
-
-func (b *IconButton) Fade() {
-	b.style.Background = Transparentize(b.color, 0.7)
 }
 
 type BoardControls struct {
@@ -138,8 +135,8 @@ func (c *BoardControls) Layout(gtx layout.Context) layout.Dimensions {
 		layout.Flexed(1, c.reset.Layout),
 		layout.Rigid(layout.Spacer{Width: c.padding}.Layout),
 		layout.Flexed(1, c.backward.Layout),
-		layout.Rigid(layout.Spacer{Width: c.padding}.Layout),
-		layout.Flexed(1, c.forward.Layout),
+		//layout.Rigid(layout.Spacer{Width: c.padding}.Layout),
+		//layout.Flexed(1, c.forward.Layout),
 		layout.Rigid(layout.Spacer{Width: c.padding}.Layout),
 		layout.Flexed(1, c.flip.Layout),
 	)
@@ -159,20 +156,6 @@ func (c *BoardControls) ShouldMoveForward(gtx layout.Context) bool {
 
 func (c *BoardControls) ShouldFlip(gtx layout.Context) bool {
 	return c.flip.button.Clicked(gtx)
-}
-
-func (c *BoardControls) Brighten() {
-	c.reset.Brighten()
-	c.backward.Brighten()
-	c.forward.Brighten()
-	c.flip.Brighten()
-}
-
-func (c *BoardControls) Fade() {
-	c.reset.Fade()
-	c.backward.Fade()
-	c.forward.Fade()
-	c.flip.Fade()
 }
 
 type PuzzleList struct {

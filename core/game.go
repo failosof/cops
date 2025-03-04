@@ -44,11 +44,7 @@ func (m Move) String() string {
 	return str.String()
 }
 
-type Moves []Move
-
-func (m Moves) Empty() bool {
-	return len(m) == 0
-}
+type Game []Move
 
 var moveTags = [...]chess.MoveTag{
 	chess.KingSideCastle,
@@ -58,7 +54,7 @@ var moveTags = [...]chess.MoveTag{
 	chess.Check,
 }
 
-func MovesFromChess(move *chess.Move) Move {
+func GameFromChess(move *chess.Move) Move {
 	var tags chess.MoveTag
 	for _, tag := range moveTags {
 		if move.HasTag(tag) {
@@ -74,30 +70,34 @@ func MovesFromChess(move *chess.Move) Move {
 	}
 }
 
-func ParseMoves(moves string) (m Moves, err error) {
+func ParseGame(moves string) (g Game, err error) {
 	pgn, err := chess.PGN(strings.NewReader(moves))
 	if err != nil {
 		return
 	}
 
 	game := chess.NewGame(pgn)
-	m = make(Moves, len(game.Moves()))
+	g = make(Game, len(game.Moves()))
 	for i, move := range game.Moves() {
-		m[i] = MovesFromChess(move)
+		g[i] = GameFromChess(move)
 	}
 
 	return
 }
 
-func (m Moves) ContainMoves(moves []*chess.Move) bool {
+func (g Game) Empty() bool {
+	return len(g) == 0
+}
+
+func (g Game) ContainsMoves(moves []*chess.Move) bool {
 	if len(moves) == 0 {
 		return true
 	}
 
 	// todo: check move number
 	var j int
-	for i := range m {
-		if m[i] == MovesFromChess(moves[j]) {
+	for i := range g {
+		if g[i] == GameFromChess(moves[j]) {
 			j++
 			if j == len(moves) {
 				return true
@@ -110,26 +110,29 @@ func (m Moves) ContainMoves(moves []*chess.Move) bool {
 	return false
 }
 
-func (m Moves) ContainPosition(pos *chess.Position) bool {
+func (g Game) ContainsPosition(pos *chess.Position) bool {
 	if pos == nil {
 		return true
 	}
 
 	game := chess.NewGame(chess.UseNotation(chess.UCINotation{}))
-	for _, move := range m {
+	for _, move := range g {
 		if err := game.MoveStr(move.String()); err != nil {
 			return false
 		}
+		if game.Position().Hash() == pos.Hash() {
+			return true
+		}
 	}
 
-	return game.Position().Hash() == pos.Hash()
+	return false
 }
 
-type GamesIndex map[GameID]Moves
+type GamesIndex map[GameID]Game
 
 func (i GamesIndex) Insert(id, moves string) error {
 	parsedID := ParseGameID(id)
-	parsedMoves, err := ParseMoves(moves)
+	parsedMoves, err := ParseGame(moves)
 	if err != nil {
 		return fmt.Errorf("failed to parse moves: %w", err)
 	}
@@ -137,10 +140,10 @@ func (i GamesIndex) Insert(id, moves string) error {
 	return nil
 }
 
-func (i GamesIndex) InsertFromChess(id GameID, game *chess.Game) {
-	moves := make(Moves, len(game.Moves()))
-	for i, move := range game.Moves() {
-		moves[i] = MovesFromChess(move)
+func (i GamesIndex) InsertFromChess(id GameID, chessGame *chess.Game) {
+	game := make(Game, len(chessGame.Moves()))
+	for i, move := range chessGame.Moves() {
+		game[i] = GameFromChess(move)
 	}
-	i[id] = moves
+	i[id] = game
 }

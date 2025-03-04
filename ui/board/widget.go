@@ -5,7 +5,6 @@ import (
 	"image/color"
 	"log/slog"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -276,10 +275,10 @@ func (w *Widget) PositionChanged() bool {
 	return w.prevPosition != nil && w.prevPosition.Hash() != w.curPosition.Hash()
 }
 
-func (w *Widget) Game() chess.Game {
+func (w *Widget) Game() *chess.Game {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	return *w.game
+	return w.game
 }
 
 func (w *Widget) drawPieces(gtx layout.Context) {
@@ -341,6 +340,8 @@ func (w *Widget) processPrimaryButtonClick(gtx layout.Context, e pointer.Event) 
 	}
 	hoveredPiece := w.game.Position().Board().Piece(hoveredSquare)
 
+	defer gtx.Execute(op.InvalidateCmd{})
+
 	switch e.Kind {
 	case pointer.Press:
 		clear(w.annotations)
@@ -363,27 +364,27 @@ func (w *Widget) processPrimaryButtonClick(gtx layout.Context, e pointer.Event) 
 
 		if w.selectedSquare != chess.NoSquare && w.selectedPiece != chess.NoPiece {
 			move := w.selectedSquare.String() + hoveredSquare.String()
-			for _, validMove := range w.game.ValidMoves() {
-				if strings.HasPrefix(validMove.String(), move) {
-					if util.IsPromotionMove(hoveredSquare, w.selectedPiece) {
-						w.promoteOn = hoveredSquare
-						gtx.Execute(op.InvalidateCmd{})
-						return
-					}
-
-					if err := w.game.MoveStr(move); err != nil {
-						slog.Error("can't make move", "err", err)
-						w.putSelectedPieceBack()
-					}
-
-					break
-				}
+			if err := w.game.MoveStr(move); err != nil {
+				w.putSelectedPieceBack()
 			}
 
-			if hoveredPiece != chess.NoPiece {
-				w.selectPiece(gtx, e, hoveredPiece, hoveredSquare)
-				return
-			}
+			//for _, validMove := range w.game.ValidMoves() {
+			//	if strings.HasPrefix(validMove.String(), move) {
+			//		if util.IsPromotionMove(hoveredSquare, w.selectedPiece) {
+			//			w.promoteOn = hoveredSquare
+			//			return
+			//		}
+			//
+			//
+			//
+			//		break
+			//	}
+			//}
+
+			//if hoveredPiece != chess.NoPiece {
+			//	w.selectPiece(gtx, e, hoveredPiece, hoveredSquare)
+			//	return
+			//}
 		}
 
 		fallthrough

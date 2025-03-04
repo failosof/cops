@@ -87,7 +87,7 @@ func (i PuzzlesIndex) Insert(puzzleID, fen, gameURL, openingTags string) error {
 	return nil
 }
 
-func (i PuzzlesIndex) Search(openingTag string, side chess.Color, maxMoves uint8) iter.Seq[PuzzleData] {
+func (i PuzzlesIndex) Filter(openingTag string, side chess.Color, maxMoves uint8) iter.Seq[PuzzleData] {
 	return func(yield func(PuzzleData) bool) {
 		for _, puzzle := range i[openingTag] {
 			if side == chess.NoColor || puzzle.Turn == side {

@@ -2,10 +2,6 @@ package ui
 
 import (
 	"context"
-	"log/slog"
-	"os"
-	"sync/atomic"
-
 	"gioui.org/app"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -14,6 +10,12 @@ import (
 	"gioui.org/widget/material"
 	"github.com/failosof/cops/core"
 	"github.com/failosof/cops/ui/board"
+	"github.com/notnil/chess"
+	"log/slog"
+	"os"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
 // todo: puzzle search pagination
@@ -34,13 +36,16 @@ type Window struct {
 	puzzles *PuzzleList
 	search  *IconButton
 
+	game *chess.Game
+
 	resourcesLoaded  atomic.Bool
 	loadingStatus    string
 	index            *core.Index
 	chessBoardConfig *chessboard.Config
 
 	searching     atomic.Bool
-	puzzlesLoaded atomic.Bool
+	resultsLoaded atomic.Bool
+	resultsMu     sync.RWMutex
 	results       []core.PuzzleData
 }
 
@@ -98,6 +103,7 @@ func (w *Window) Show(ctx context.Context) {
 		w.board = chessboard.NewWidget(w.theme, w.chessBoardConfig)
 
 		w.resourcesLoaded.Store(true)
+		w.window.Invalidate()
 	}()
 
 	app.Main()
@@ -117,17 +123,20 @@ func (w *Window) update(ctx context.Context) error {
 			}
 
 			gtx := app.NewContext(&ops, e)
+
 			if w.resourcesLoaded.Load() {
 				if !w.searching.Load() {
 					w.handleControls(gtx)
 					w.handleBoard(gtx)
 					w.handleSearch(gtx)
+				} else {
+					gtx = gtx.Disabled()
 				}
 				w.layoutWidgets(gtx)
 			} else {
 				w.layoutLoading(gtx)
-				redraw(gtx)
 			}
+
 			e.Frame(gtx.Ops)
 		}
 	}
@@ -146,35 +155,41 @@ func (w *Window) handleControls(gtx layout.Context) {
 	default:
 		return // do not refresh the screen
 	}
-	redraw(gtx)
+	w.window.Invalidate()
 }
 
 func (w *Window) handleBoard(gtx layout.Context) {
 	//if w.board.PositionChanged() {
-	game := w.board.Game()
-	openingName, _ := w.index.SearchOpening(&game)
+	openingName, _ := w.index.SearchOpening(w.board.Game())
 	w.opening.Set(openingName)
-	redraw(gtx)
+	//gtx.Execute(op.InvalidateCmd{})
 	//}
 }
 
 func (w *Window) handleSearch(gtx layout.Context) {
 	if w.search.button.Clicked(gtx) {
-		maxMoves := w.moves.Selected()
-		game := w.board.Game()
-		turn := w.turn.Selected()
 		w.searching.Store(true)
-		w.boardControls.Fade()
-		w.results = make([]core.PuzzleData, 0, 1000)
-		redraw(gtx)
+
+		maxMoves := w.moves.Selected()
+		turn := w.turn.Selected()
 		go func() {
-			for puzzle := range w.index.SearchPuzzles(&game, turn, maxMoves) {
-				w.results = append(w.results, puzzle)
-			}
-			w.boardControls.Brighten()
+			w.resultsMu.Lock()
+			defer w.resultsMu.Unlock()
+
+			start := time.Now()
+			results := w.index.SearchPuzzles(w.board.Game(), turn, maxMoves)
+			took := time.Since(start)
+			slog.Info("puzzle search", "found", len(results), "took", took)
+
+			w.results = make([]core.PuzzleData, len(results))
+			copy(w.results, results)
+
 			w.searching.Store(false)
-			w.puzzlesLoaded.Store(false)
+			w.resultsLoaded.Store(false)
+			w.window.Invalidate()
 		}()
+
+		gtx.Execute(op.InvalidateCmd{})
 	}
 }
 
@@ -205,9 +220,16 @@ func (w *Window) layoutBoardPane(gtx layout.Context) layout.Dimensions {
 }
 
 func (w *Window) layoutSearchPane(gtx layout.Context) layout.Dimensions {
-	if !w.puzzlesLoaded.Load() {
-		w.puzzles.Add(w.results)
-		w.puzzlesLoaded.Store(true)
+	if !w.resultsLoaded.Load() {
+		w.resultsLoaded.Store(true)
+		w.resultsMu.Lock()
+		results := w.results
+		if len(results) > PageSize {
+			results = results[:PageSize]
+		}
+		w.puzzles.Add(results)
+		w.resultsMu.Unlock()
+		gtx.Execute(op.InvalidateCmd{})
 	}
 
 	return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle, Spacing: layout.SpaceBetween}.Layout(gtx,
@@ -228,8 +250,4 @@ func (w *Window) layoutLoading(gtx layout.Context) layout.Dimensions {
 			})
 		}),
 	)
-}
-
-func redraw(gtx layout.Context) {
-	gtx.Execute(op.InvalidateCmd{})
 }
